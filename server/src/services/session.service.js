@@ -364,6 +364,292 @@ async function removeCoInstructor(sessionId, instructorId, user = null) {
   return sessionRepository.findById(sessionId);
 }
 
+// ────────────────────────────────────────────────────────────────
+// Recurring Schedule Generation 
+// ────────────────────────────────────────────────────────────────
+
+const WEEKDAY_MAP = {
+  SUNDAY: 0, SUN: 0,
+  MONDAY: 1, MON: 1,
+  TUESDAY: 2, TUE: 2, TUES: 2,
+  WEDNESDAY: 3, WED: 3,
+  THURSDAY: 4, THU: 4, THURS: 4,
+  FRIDAY: 5, FRI: 5,
+  SATURDAY: 6, SAT: 6,
+};
+
+/**
+ * Normalizes weekday input (e.g. 'MONDAY', 'Monday', or 0-6 / 1-7)
+ * to a standard 0-6 index where 0 = Sunday, 1 = Monday, ..., 6 = Saturday.
+ */
+function parseWeekday(val) {
+  if (typeof val === 'number') {
+    if (val >= 0 && val <= 6) return val;
+    if (val === 7) return 0;
+  }
+  if (typeof val === 'string') {
+    const trimmed = val.trim().toUpperCase();
+    if (WEEKDAY_MAP[trimmed] !== undefined) {
+      return WEEKDAY_MAP[trimmed];
+    }
+    const num = parseInt(trimmed, 10);
+    if (!isNaN(num)) {
+      if (num >= 0 && num <= 6) return num;
+      if (num === 7) return 0;
+    }
+  }
+  throw new ValidationError(`Invalid weekday: ${val}. Must be Monday through Sunday.`);
+}
+
+/**
+ * Validates and parses YYYY-MM-DD start and end date strings into UTC Date objects,
+ * ensuring both are valid calendar dates and start_date <= end_date.
+ */
+function parseDateRange(startDateStr, endDateStr) {
+  if (!startDateStr || !endDateStr) {
+    throw new ValidationError('start_date and end_date are required');
+  }
+  const startParts = String(startDateStr).split('-').map(Number);
+  const endParts = String(endDateStr).split('-').map(Number);
+  if (startParts.length !== 3 || endParts.length !== 3 || startParts.some(isNaN) || endParts.some(isNaN)) {
+    throw new ValidationError('start_date and end_date must be in YYYY-MM-DD format');
+  }
+  const start = new Date(Date.UTC(startParts[0], startParts[1] - 1, startParts[2]));
+  const end = new Date(Date.UTC(endParts[0], endParts[1] - 1, endParts[2]));
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+    throw new ValidationError('start_date and end_date must be valid calendar dates');
+  }
+  if (start.getTime() > end.getTime()) {
+    throw new ValidationError('start_date must be before or equal to end_date');
+  }
+  return { start, end };
+}
+
+/**
+ * Iterates day-by-day through the inclusive date range [startDate, endDate]
+ * and returns all dates (YYYY-MM-DD) matching the target weekday index.
+ */
+function getMatchingDates(startDate, endDate, targetWeekday) {
+  const dates = [];
+  const current = new Date(startDate.getTime());
+  while (current.getTime() <= endDate.getTime()) {
+    if (current.getUTCDay() === targetWeekday) {
+      const y = current.getUTCFullYear();
+      const m = String(current.getUTCMonth() + 1).padStart(2, '0');
+      const d = String(current.getUTCDate()).padStart(2, '0');
+      dates.push(`${y}-${m}-${d}`);
+    }
+    current.setUTCDate(current.getUTCDate() + 1);
+  }
+  return dates;
+}
+
+/**
+ * Validates and parses HH:mm (or HH:mm:ss) 24-hour time strings into hours,
+ * minutes, seconds, and a normalized HH:mm:ss formatted string.
+ */
+function parseTime(timeStr) {
+  if (!timeStr || typeof timeStr !== 'string') {
+    throw new ValidationError('start_time is required');
+  }
+  const parts = timeStr.trim().split(':');
+  if (parts.length < 2) {
+    throw new ValidationError('start_time must be in HH:mm format');
+  }
+  const hours = Number(parts[0]);
+  const minutes = Number(parts[1]);
+  const seconds = parts[2] ? Number(parts[2]) : 0;
+  if (isNaN(hours) || isNaN(minutes) || isNaN(seconds) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59 || seconds < 0 || seconds > 59) {
+    throw new ValidationError('start_time must be a valid time (00:00 to 23:59)');
+  }
+  return {
+    hours,
+    minutes,
+    seconds,
+    formatted: `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`,
+  };
+}
+
+/**
+ * Bulk-generates recurring sessions for a class across an inclusive date range
+ * on a specific weekday. Skips existing occurrences (ALREADY_EXISTS) and overlapping
+ * room/instructor conflicts while creating all other valid occurrences (partial success).
+ */
+async function generateRecurringSchedule(data, user = null) {
+  const {
+    class_id,
+    start_date,
+    end_date,
+    weekday,
+    start_time,
+    room,
+    duration: rawDuration,
+    capacity: rawCapacity,
+    primary_instructor_id,
+    co_instructor_ids = [],
+  } = data;
+
+  if (!class_id) {
+    throw new ValidationError('Class ID is required');
+  }
+  if (!room || typeof room !== 'string' || !room.trim()) {
+    throw new ValidationError('Room is required');
+  }
+  if (!primary_instructor_id) {
+    throw new ValidationError('Primary instructor ID is required');
+  }
+
+  // 1. Verify class exists and is not archived
+  const cls = await classRepository.findById(class_id);
+  if (!cls) {
+    throw new NotFoundError('Class not found');
+  }
+  if (cls.is_archived) {
+    throw new ValidationError('Cannot create sessions for an archived class.');
+  }
+
+  // 2. Resolve duration and capacity (defaults vs overrides)
+  const duration = rawDuration !== undefined ? Number(rawDuration) : cls.default_duration;
+  const capacity = rawCapacity !== undefined ? Number(rawCapacity) : cls.default_capacity;
+
+  if (!Number.isInteger(duration) || duration <= 0) {
+    throw new ValidationError('Duration must be a positive integer in minutes');
+  }
+  if (!Number.isInteger(capacity) || capacity <= 0) {
+    throw new ValidationError('Capacity must be a positive integer');
+  }
+
+  // 3. Validate instructors
+  const primaryId = Number(primary_instructor_id);
+  await validateInstructorAccount(primaryId, 'Primary instructor');
+
+  if (!Array.isArray(co_instructor_ids)) {
+    throw new ValidationError('Co-instructor IDs must be an array');
+  }
+
+  const numericCoIds = co_instructor_ids.map(Number);
+  if (numericCoIds.includes(primaryId)) {
+    throw new ValidationError('Primary instructor cannot also be a co-instructor for the same session.');
+  }
+
+  const uniqueCoIds = [...new Set(numericCoIds)];
+  if (uniqueCoIds.length !== numericCoIds.length) {
+    throw new ValidationError('Duplicate co-instructors are not allowed.');
+  }
+
+  for (const coId of uniqueCoIds) {
+    await validateInstructorAccount(coId, 'Co-instructor');
+  }
+
+  // 4. Parse dates, weekday, and time
+  const { start, end } = parseDateRange(start_date, end_date);
+  const targetWeekday = parseWeekday(weekday);
+  const timeObj = parseTime(start_time);
+
+  const matchingDateStrs = getMatchingDates(start, end, targetWeekday);
+
+  // If no matching weekday in range: return empty result rather than an error
+  if (matchingDateStrs.length === 0) {
+    return {
+      created: [],
+      skipped: [],
+      summary: {
+        total: 0,
+        created_count: 0,
+        skipped_count: 0,
+      },
+    };
+  }
+
+  const created = [];
+  const skipped = [];
+
+  for (const dateStr of matchingDateStrs) {
+    const startTime = new Date(`${dateStr}T${timeObj.formatted}.000Z`);
+    const endTime = computeEndTime(startTime, duration);
+
+    // Rule 3: Check whether an occurrence already exists for same class and exact start_time
+    const existingOccurrence = await sessionRepository.findExactOccurrence(cls.id, startTime);
+    if (existingOccurrence) {
+      skipped.push({
+        date: dateStr,
+        start_time: startTime.toISOString(),
+        reasons: ['ALREADY_EXISTS'],
+      });
+      continue;
+    }
+
+    // Rule 4 & 5: Check room and instructor overlaps across full session interval
+    const occurrenceReasons = [];
+
+    const roomConflict = await sessionRepository.findRoomOverlap(room.trim(), startTime, endTime);
+    if (roomConflict) {
+      occurrenceReasons.push('ROOM_CONFLICT');
+    }
+
+    // Check primary instructor
+    let instructorConflict = await sessionRepository.findInstructorOverlap(primaryId, startTime, endTime);
+
+    // Check co-instructors if not already conflicted
+    if (!instructorConflict && uniqueCoIds.length > 0) {
+      for (const coId of uniqueCoIds) {
+        const coConflict = await sessionRepository.findInstructorOverlap(coId, startTime, endTime);
+        if (coConflict) {
+          instructorConflict = true;
+          break;
+        }
+      }
+    }
+
+    if (instructorConflict) {
+      occurrenceReasons.push('INSTRUCTOR_CONFLICT');
+    }
+
+    // If any conflict exists, skip occurrence once with all reasons
+    if (occurrenceReasons.length > 0) {
+      skipped.push({
+        date: dateStr,
+        start_time: startTime.toISOString(),
+        reasons: occurrenceReasons,
+      });
+      continue;
+    }
+
+    // Rule 7 & 8: Atomic creation per occurrence (partial success)
+    const newSession = await sequelize.transaction(async (t) => {
+      const sessionRecord = await sessionRepository.create(
+        {
+          class_id: cls.id,
+          room: room.trim(),
+          start_time: startTime,
+          duration,
+          capacity,
+          primary_instructor_id: primaryId,
+        },
+        { transaction: t }
+      );
+
+      if (uniqueCoIds.length > 0) {
+        await sessionRepository.setCoInstructors(sessionRecord.id, uniqueCoIds, { transaction: t });
+      }
+
+      return sessionRepository.findById(sessionRecord.id, { transaction: t });
+    });
+
+    created.push(newSession);
+  }
+
+  return {
+    created,
+    skipped,
+    summary: {
+      total: matchingDateStrs.length,
+      created_count: created.length,
+      skipped_count: skipped.length,
+    },
+  };
+}
+
 module.exports = {
   computeEndTime,
   validateInstructorAccount,
@@ -376,4 +662,5 @@ module.exports = {
   deleteSession,
   addCoInstructor,
   removeCoInstructor,
+  generateRecurringSchedule,
 };

@@ -9,6 +9,7 @@ const router = Router();
 
 // Staff-only session management routes
 router.post('/', authenticate, authorize('STAFF'), sessionController.create);
+router.post('/recurring', authenticate, authorize('STAFF'), sessionController.generateRecurring);
 router.put('/:id', authenticate, authorize('STAFF'), sessionController.update);
 router.delete('/:id', authenticate, authorize('STAFF'), sessionController.remove);
 

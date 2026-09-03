@@ -27,5 +27,9 @@ The test suite prioritizes **behavior-driven coverage** over unit duplication, e
 * **Capacity & Deletion Guards:** Confirms capacity cannot drop below the count of active `BOOKED` members, and sessions with bookings or past start times cannot be deleted.
 * **Instructor Data Isolation:** Verifies server-side authorization filters ensure instructors can only view sessions they are assigned to (as primary or co-instructor) and receive `403 Forbidden` for unrelated sessions.
 
----
-
+### 4. Recurring Schedule Generation (`sessions/recurring-schedule.test.js`)
+* **Weekly Pattern Generation:** Confirms bulk session creation calculates correct dates across an inclusive date range and applies class defaults or custom overrides.
+* **Duplicate Detection:** Verifies existing occurrences matching the same class and exact start time are skipped with `ALREADY_EXISTS` and remain unmutated.
+* **Multi-Conflict Reporting:** Tests interval overlap checks for room and instructor double-booking and confirms multiple conflict reasons (`ROOM_CONFLICT`, `INSTRUCTOR_CONFLICT`) are reported together.
+* **Partial Success:** Proves valid occurrences are created and committed while conflicted occurrences are skipped without rolling back the batch.
+* **Empty Range Handling:** Confirms returning an empty result (`created: []`, `skipped: []`) with HTTP 200 when no matching weekdays occur in the date range.

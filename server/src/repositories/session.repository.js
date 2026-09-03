@@ -224,6 +224,16 @@ async function findInstructorOverlap(instructorId, startTime, endTime, excludeSe
   });
 }
 
+async function findExactOccurrence(classId, startTime, options = {}) {
+  return Session.findOne({
+    where: {
+      class_id: Number(classId),
+      start_time: new Date(startTime),
+    },
+    ...options,
+  });
+}
+
 module.exports = {
   create,
   findById,
@@ -238,4 +248,5 @@ module.exports = {
   countBookedMembers,
   findRoomOverlap,
   findInstructorOverlap,
+  findExactOccurrence,
 };

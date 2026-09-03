@@ -101,6 +101,18 @@ async function removeCoInstructor(req, res, next) {
   }
 }
 
+async function generateRecurring(req, res, next) {
+  try {
+    const result = await sessionService.generateRecurringSchedule(req.body, req.user);
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   create,
   list,
@@ -109,4 +121,5 @@ module.exports = {
   remove,
   addCoInstructor,
   removeCoInstructor,
+  generateRecurring,
 };

@@ -184,3 +184,33 @@ The AI implemented the Class and Session Management feature with the required ro
 * Clarified that an instructor's authorized session response can include the associated class, primary instructor, and co-instructor information; separate response filtering was unnecessary.
 * Refined the automated test scope to keep only the **important business-rule tests** instead of maintaining an exhaustive set of 40+ tests.
 * Clarified that `session.class_id` can be changed before the session starts, provided the target class exists and is active. Changing the class does not reset the session's existing duration or capacity.
+
+
+## Recurring Schedule Generation 
+
+### Prompt
+
+Implement Goal 7: Recurring Schedule Generation using the existing project structure, schema, authentication/authorization middleware, layered architecture, and session validation logic. Do not implement the CSV/export portion.
+
+Implement:
+* Staff-only `POST /sessions/recurring` endpoint.
+* Accept `class_id`, `start_date`, `end_date`, `weekday`, `start_time`, `room`, `duration` (optional), `capacity` (optional), `primary_instructor_id`, and `co_instructor_ids` (optional).
+* Inclusive date range generating one occurrence per matching weekday.
+* Duration and capacity default from the class if omitted, or use supplied overrides.
+* Target class must exist and not be archived.
+* Skip existing occurrences with `reasons: ["ALREADY_EXISTS"]` and never mutate existing sessions.
+* Check full-interval room and instructor overlaps (both primary and co-instructors). If both conflict, skip once and report both reasons (`["ROOM_CONFLICT", "INSTRUCTOR_CONFLICT"]`).
+* Return an empty result (`created: []`, `skipped: []`) when no matching weekday falls in the date range.
+* Support partial success: valid occurrences are created while conflicted ones are skipped.
+* Make each occurrence and its co-instructors atomic via a transaction, without wrapping the whole batch in one transaction.
+* Return `created`, `skipped`, and `summary` (`total`, `created_count`, `skipped_count`).
+* Add maximum 5 focused automated tests covering generation with defaults/overrides, `ALREADY_EXISTS`, multi-conflict reporting, partial success, and empty range handling.
+
+### What I got
+
+The AI implemented the recurring schedule service method, repository existence query, controller action, and staff-only route with overlap detection, duplicate skipping, partial success handling, and 5 automated tests.
+
+### What I corrected
+
+* Replaced a generic staff-only 403 test with a domain-specific test verifying an empty result (`{ created: [], skipped: [], summary: { total: 0, ... } }`) is returned when the date range contains no matching weekday.
+* Added clear doc comments to the date, time, and weekday parsing helpers in `session.service.js`.
