@@ -13,7 +13,7 @@
     "db:seed": "npx sequelize-cli db:seed:all",
     "db:seed:undo": "npx sequelize-cli db:seed:undo:all",
     "db:reset": "npx sequelize-cli db:drop && npx sequelize-cli db:create && npx sequelize-cli db:migrate && npx sequelize-cli db:seed:all",
-    "test": "jest --forceExit --detectOpenHandles"
+    "test": "jest --runInBand --forceExit --detectOpenHandles"
   },
   "keywords": [],
   "author": "",

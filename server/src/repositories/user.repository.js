@@ -11,4 +11,15 @@ async function findByEmail(email) {
   return User.findOne({ where: { email } });
 }
 
-module.exports = { findByEmail };
+/**
+ * Find a user by primary key ID.
+ * @param {number} id
+ * @param {object} options
+ * @returns {Promise<object|null>}
+ */
+async function findById(id, options = {}) {
+  return User.findByPk(id, options);
+}
+
+module.exports = { findByEmail, findById };
+

@@ -142,3 +142,45 @@ database was verified in PostgreSQL.
 - Login API verified successfully using Postman.
 - All authentication tests pass.
 - Documentation updated to reflect the implementation and decisions.
+
+
+## Class & Session Management
+
+### Prompt
+
+ Implement the Class and Session Management feature using the existing project structure, schema, authentication/authorization middleware, and layered architecture.
+
+ Implement:
+
+ * Staff-only class CRUD operations except deletion; use archive/restore instead.
+* Class title uniqueness across active and archived classes.
+ * Class editing, where changes to `default_duration` and `default_capacity` affect only newly created sessions; existing sessions keep their own values.
+ * Archive behavior: archiving does not delete sessions or bookings, existing sessions remain bookable, but new sessions cannot be created for an archived class. Restore enables new sessions again.
+ * Staff-only session creation, editing, and deletion.
+ * Session creation with class defaults copied into the session when duration/capacity are omitted.
+ * Session duration and capacity can later be changed independently.
+ * Sessions can be edited or deleted only before their scheduled start time. Once started, they are permanently frozen.
+ * Sessions with bookings cannot be deleted.
+ * Capacity cannot be reduced below the number of currently `BOOKED` members.
+ * Exactly one primary instructor, with zero or more co-instructors. The primary instructor cannot also be a co-instructor.
+ * Validate room and instructor overlaps using the session start timestamp and duration. Instructor overlap must consider both primary and co-instructor assignments.
+ * Instructors can only view sessions where they are the primary instructor or a co-instructor. This authorization must be enforced server-side.
+ * When an instructor is authorized to view a session, returning the associated class, primary instructor, and co-instructor information in the response is acceptable; do not add separate response filtering solely for instructors.
+ * When changing a session's `class_id`, the target class must exist and must not be archived. Changing the class must not reset the session's existing duration/capacity unless explicitly supplied.
+
+ Keep controllers, services, repositories, and models separated. Reuse the existing error handling, transactions, and conventions. Do not implement booking functionality or other unrelated features.
+
+ Add only the important automated tests for the above business rules. Do not create exhaustive tests for every validation variation or duplicate scenario. Focus on the core class/session behavior, scheduling constraints, instructor assignment, and server-side instructor authorization.
+
+ Before implementation, inspect the existing codebase and schema and avoid unnecessary structural changes.
+
+### What I got
+
+The AI implemented the Class and Session Management feature with the required routes, services, repositories, validations, instructor/room overlap checks, archive behavior, session freeze rules, capacity validation, and server-side instructor authorization. It also added automated tests for the feature.
+
+### What I corrected
+
+* Initially, `GET /classes`, `GET /classes/:id`, and `GET /classes/:id/sessions` were accessible to authenticated users including instructors. I changed the access model so **class viewing/management remains staff-only**, while instructors can access only the sessions they are assigned to.
+* Clarified that an instructor's authorized session response can include the associated class, primary instructor, and co-instructor information; separate response filtering was unnecessary.
+* Refined the automated test scope to keep only the **important business-rule tests** instead of maintaining an exhaustive set of 40+ tests.
+* Clarified that `session.class_id` can be changed before the session starts, provided the target class exists and is active. Changing the class does not reset the session's existing duration or capacity.

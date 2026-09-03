@@ -32,11 +32,13 @@ normal operation.
 
 ## Decision 5
 
-- **Chose:** Deactivate instructors instead of deleting instructors that
-are referenced by sessions.
-- **Rejected:** Deleting the instructor or setting the reference to NULL.
-- **Why:** Instructor identity is part of the historical session record,
-so removing that identity would weaken historical integrity.
+- **Chose:** Deactivate users (staff and instructors) instead of deleting
+users that are referenced by sessions, booking timelines, or alert dismissals.
+- **Rejected:** Deleting users or setting user references to NULL.
+- **Why:** User identity is part of the historical session record and
+administrative audit trails (booking timeline events and alert dismissals),
+so removing user identities would weaken historical integrity and violate
+foreign-key constraints.
 
 ## Decision 6
 
@@ -70,10 +72,8 @@ database/application seeding. No user-management API is included.
 - **Chose:** JWT-based stateless authentication with a 1-day token
   expiry. The token contains the user ID and role and is stored by the
   client in localStorage.
-
 - **Rejected:** Server-side session tracking, refresh tokens, OAuth,
   and cookie-based authentication.
-
 - **Why:** The assignment only requires email/password authentication
   and server-side role enforcement. A stateless JWT keeps the
   implementation small and avoids introducing session storage,
@@ -81,15 +81,35 @@ database/application seeding. No user-management API is included.
   outside the assignment scope.
 
 
-  ## Decision 10
+## Decision 10
 
 - **Chose:** Keep controllers, services, repositories, middleware,
   models, and utilities separate.
-
 - **Rejected:** Putting database queries and business logic directly
   inside controllers.
-
 - **Why:** The separation keeps HTTP handling, business logic, and
   database access independent and makes the backend easier to test,
   reason about, and extend as the remaining assignment goals are
   implemented.
+
+
+## Decision 11
+
+- **Chose:** A session becomes permanently immutable once its scheduled start time has passed.
+- **Rejected:** Allowing staff to edit the session again after it finishes.
+- **Why:** Allowing changes after the session has started could rewrite scheduling information that may already affect bookings, attendance, and historical records. A permanent freeze gives the session a clear lifecycle boundary.
+
+
+## Decision 12
+
+- **Chose:** An instructor cannot be assigned to overlapping sessions regardless of whether they are primary on one session and co-instructor on another.
+- **Rejected:** Checking overlap only for primary-instructor assignments.
+- **Why:** An instructor is still committed to the session when serving as a co-instructor, so ignoring co-instructor assignments could schedule the same instructor in two places at once.
+
+
+## Decision 13
+
+- **Chose:** Instructors can access only sessions where they are the primary instructor or a co-instructor.
+- **Response behavior:** When an instructor views an authorized session, the response intentionally includes the associated class information, primary instructor information, and co-instructor information as part of the session response.
+- **Rejected:** Creating separate filtered response logic solely to hide class or other instructor information from an instructor's authorized session response.
+- **Why:** The session query already retrieves these related entities, and creating a separate response structure/filtering logic specifically for instructors would add unnecessary complexity without providing a meaningful security benefit. The important authorization boundary is which sessions the instructor can access, not hiding non-sensitive details of a session they are already authorized to view.

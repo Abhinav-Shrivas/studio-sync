@@ -1,0 +1,31 @@
+# Test Suite Overview
+
+This directory contains integration test suites written with **Jest** and **Supertest**, executed against a dedicated PostgreSQL test database (`class_booking_test`).
+
+The test suite prioritizes **behavior-driven coverage** over unit duplication, exercising HTTP routing, authentication/authorization middleware, service-layer business rules, and database constraints end-to-end.
+
+---
+
+## What We Tested & Why
+
+### 1. Authentication & Authorization (`auth/auth.test.js`)
+* **Credential Verification & JWT Issuance:** Proves valid staff/instructor logins return a signed JWT with user metadata while strictly omitting sensitive password hashes.
+* **Security & Account Status:** Confirms invalid passwords, unknown emails (preventing user enumeration), and deactivated accounts consistently receive `401 Unauthorized`.
+* **Middleware & Role Enforcement:** Verifies protected routes block missing/malformed tokens, correctly populate `req.user`, and enforce role-based access (`STAFF` vs `INSTRUCTOR`) with `403 Forbidden`.
+
+### 2. Class Management (`classes/class.test.js`)
+* **Class Lifecycle:** Confirms staff can create classes with predefined disciplines and defaults, archive classes (hiding them from default listings), and restore them.
+* **Global Uniqueness:** Validates that class title uniqueness is enforced across all classes, including archived ones.
+* **Defaults Decoupling:** Proves modifying class-level defaults (`default_duration`, `default_capacity`) does not alter existing session configurations.
+
+### 3. Session Management (`sessions/session.test.js`)
+* **Defaults Inheritance & Overrides:** Confirms session creation inherits class defaults when omitted, but accepts explicit overrides.
+* **Archive Protection:** Ensures scheduling sessions under archived classes is strictly rejected.
+* **Instructor Assignments:** Enforces assignment rules (e.g., primary instructor cannot also be assigned as a co-instructor).
+* **Overlap Validation:** Tests the core interval scheduling rule (`existing.start < new.end AND new.start < existing.end`) to block room double-booking and instructor double-booking, while explicitly allowing adjacent back-to-back sessions.
+* **Session Freeze Rule:** Proves sessions can be modified before their scheduled start, but become immutable once the start time passes.
+* **Capacity & Deletion Guards:** Confirms capacity cannot drop below the count of active `BOOKED` members, and sessions with bookings or past start times cannot be deleted.
+* **Instructor Data Isolation:** Verifies server-side authorization filters ensure instructors can only view sessions they are assigned to (as primary or co-instructor) and receive `403 Forbidden` for unrelated sessions.
+
+---
+
