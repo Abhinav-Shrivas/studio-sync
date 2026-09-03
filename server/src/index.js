@@ -5,6 +5,7 @@ const { sequelize } = require('./models');
 const authRoutes = require('./routes/auth.routes');
 const classRoutes = require('./routes/class.routes');
 const sessionRoutes = require('./routes/session.routes');
+const bookingRoutes = require('./routes/booking.routes');
 const errorHandler = require('./middlewares/errorHandler');
 
 const app = express();
@@ -28,6 +29,7 @@ app.get('/health', async (_req, res) => {
 app.use('/auth', authRoutes);
 app.use('/classes', classRoutes);
 app.use('/sessions', sessionRoutes);
+app.use('/bookings', bookingRoutes);
 
 // ── Error handling ───────────────────────────────────────────────
 app.use(errorHandler);

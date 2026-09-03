@@ -1,0 +1,312 @@
+'use strict';
+
+const { sequelize, Booking, Session } = require('../models');
+const bookingRepository = require('../repositories/booking.repository');
+const memberRepository = require('../repositories/member.repository');
+const { ValidationError, NotFoundError, ForbiddenError, ConflictError } = require('../utils/errors');
+
+/**
+ * Creates a new booking for a member and session.
+ * Enforces membership validity, concurrency-safe capacity check, and atomic timeline insertion.
+ */
+async function createBooking(data, user) {
+  const { member_id, session_id } = data;
+
+  if (!member_id) {
+    throw new ValidationError('Member ID is required');
+  }
+  if (!session_id) {
+    throw new ValidationError('Session ID is required');
+  }
+
+  const memberId = Number(member_id);
+  const sessionId = Number(session_id);
+
+  // 1. Verify member exists
+  const member = await memberRepository.findById(memberId);
+  if (!member) {
+    throw new NotFoundError('Member not found');
+  }
+
+  // 2. Verify membership expiry (checked only when creating a new booking)
+  const today = new Date().toISOString().slice(0, 10);
+  if (member.membership_expiry < today) {
+    throw new ValidationError('Member membership has expired.');
+  }
+
+  // 3. Concurrency-safe capacity check and creation inside transaction
+  return sequelize.transaction(async (t) => {
+    // Lock session row to serialize concurrent booking/cancellation requests
+    const session = await Session.findByPk(sessionId, {
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+    if (!session) {
+      throw new NotFoundError('Session not found');
+    }
+
+    // Check duplicate booking: UNIQUE(member_id, session_id)
+    const existingBooking = await bookingRepository.findByMemberAndSession(memberId, sessionId, {
+      transaction: t,
+    });
+    if (existingBooking) {
+      throw new ConflictError('Member already has a booking for this session.');
+    }
+
+    // Count currently BOOKED members while lock is held
+    const bookedCount = await bookingRepository.countBooked(sessionId, { transaction: t });
+    const status = bookedCount < session.capacity ? 'BOOKED' : 'WAITLISTED';
+
+    const booking = await bookingRepository.create(
+      {
+        member_id: memberId,
+        session_id: sessionId,
+        status,
+      },
+      { transaction: t }
+    );
+
+    // Initial timeline entry in the same transaction
+    await bookingRepository.createTimelineEntry(
+      {
+        booking_id: booking.id,
+        from_status: null,
+        to_status: status,
+        actor_id: user.id,
+        change_source: 'USER',
+        note: null,
+      },
+      { transaction: t }
+    );
+
+    return bookingRepository.findById(booking.id, { transaction: t });
+  });
+}
+
+/**
+ * Cancels a booking. If BOOKED was cancelled, promotes the earliest waitlisted booking.
+ * Both the cancellation and promotion are recorded in the timeline atomically.
+ */
+async function cancelBooking(bookingId, user) {
+  return sequelize.transaction(async (t) => {
+    const booking = await Booking.findByPk(Number(bookingId), { transaction: t });
+    if (!booking) {
+      throw new NotFoundError('Booking not found');
+    }
+
+    // Allowed transitions: BOOKED -> CANCELLED, WAITLISTED -> CANCELLED
+    if (!['BOOKED', 'WAITLISTED'].includes(booking.status)) {
+      throw new ValidationError(
+        `Cannot cancel booking with status ${booking.status}. Only BOOKED or WAITLISTED bookings can be cancelled.`
+      );
+    }
+
+    // Lock session row
+    const session = await Session.findByPk(booking.session_id, {
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    const oldStatus = booking.status;
+    await booking.update({ status: 'CANCELLED' }, { transaction: t });
+
+    // Timeline entry for cancelled booking
+    await bookingRepository.createTimelineEntry(
+      {
+        booking_id: booking.id,
+        from_status: oldStatus,
+        to_status: 'CANCELLED',
+        actor_id: user.id,
+        change_source: 'USER',
+        note: null,
+      },
+      { transaction: t }
+    );
+
+    let promotedBooking = null;
+
+    // If cancelled booking was BOOKED, promote earliest waitlisted booking
+    if (oldStatus === 'BOOKED') {
+      const earliestWaitlisted = await bookingRepository.findEarliestWaitlisted(session.id, {
+        transaction: t,
+        lock: t.LOCK.UPDATE,
+      });
+
+      if (earliestWaitlisted) {
+        await earliestWaitlisted.update({ status: 'BOOKED' }, { transaction: t });
+
+        // Timeline entry for waitlist promotion (SYSTEM source)
+        await bookingRepository.createTimelineEntry(
+          {
+            booking_id: earliestWaitlisted.id,
+            from_status: 'WAITLISTED',
+            to_status: 'BOOKED',
+            actor_id: null,
+            change_source: 'SYSTEM',
+            note: null,
+          },
+          { transaction: t }
+        );
+
+        promotedBooking = await bookingRepository.findById(earliestWaitlisted.id, { transaction: t });
+      }
+    }
+
+    const updatedBooking = await bookingRepository.findById(booking.id, { transaction: t });
+    return {
+      booking: updatedBooking,
+      promotedBooking,
+    };
+  });
+}
+
+/**
+ * Settles attendance for a BOOKED booking after session start time.
+ * Staff can settle any session; Instructors can settle only assigned sessions.
+ */
+async function settleAttendance(bookingId, data, user) {
+  const { status } = data;
+
+  if (!status || !['ATTENDED', 'NO_SHOW'].includes(status)) {
+    throw new ValidationError('Status must be either ATTENDED or NO_SHOW.');
+  }
+
+  return sequelize.transaction(async (t) => {
+    const booking = await bookingRepository.findById(Number(bookingId), { transaction: t });
+    if (!booking) {
+      throw new NotFoundError('Booking not found');
+    }
+
+    if (booking.status !== 'BOOKED') {
+      throw new ValidationError(
+        `Cannot settle booking with status ${booking.status}. Only BOOKED bookings can be settled.`
+      );
+    }
+
+    const session = booking.session;
+    if (!session) {
+      throw new NotFoundError('Associated session not found');
+    }
+
+    // Settlement is allowed once the session's scheduled start time has passed
+    if (new Date() < new Date(session.start_time)) {
+      throw new ValidationError('Cannot settle attendance before the session scheduled start time.');
+    }
+
+    // Authorization check
+    if (user.role === 'INSTRUCTOR') {
+      const coInstructorIds = (session.coInstructors || []).map((ci) => ci.id);
+      const isAssigned = session.primary_instructor_id === user.id || coInstructorIds.includes(user.id);
+      if (!isAssigned) {
+        throw new ForbiddenError('Instructors can only settle attendance for sessions they instruct.');
+      }
+    }
+
+    const settledAt = new Date();
+    await booking.update(
+      {
+        status,
+        settled_at: settledAt,
+      },
+      { transaction: t }
+    );
+
+    const note = user.role === 'INSTRUCTOR'
+      ? 'Attendance marked by instructor of this session.'
+      : (data.note ? data.note.trim() : null);
+
+    await bookingRepository.createTimelineEntry(
+      {
+        booking_id: booking.id,
+        from_status: 'BOOKED',
+        to_status: status,
+        actor_id: user.id,
+        change_source: 'USER',
+        note,
+      },
+      { transaction: t }
+    );
+
+    return bookingRepository.findById(booking.id, { transaction: t });
+  });
+}
+
+/**
+ * Appends a staff note to the booking timeline without modifying the booking status.
+ * Uses current booking status for both from_status and to_status.
+ * Does not require a database transaction.
+ */
+async function addStaffNote(bookingId, data, user) {
+  if (user.role !== 'STAFF') {
+    throw new ForbiddenError('Only staff can add timeline notes.');
+  }
+
+  const { note } = data;
+  if (!note || typeof note !== 'string' || !note.trim()) {
+    throw new ValidationError('Note content is required.');
+  }
+
+  const booking = await Booking.findByPk(Number(bookingId));
+  if (!booking) {
+    throw new NotFoundError('Booking not found');
+  }
+
+  const timelineEntry = await bookingRepository.createTimelineEntry({
+    booking_id: booking.id,
+    from_status: booking.status,
+    to_status: booking.status,
+    actor_id: user.id,
+    change_source: 'USER',
+    note: note.trim(),
+  });
+
+  return timelineEntry;
+}
+
+/**
+ * Retrieves the complete append-only audit timeline for a booking.
+ * Staff only.
+ */
+async function getBookingTimeline(bookingId, user) {
+  if (user.role !== 'STAFF') {
+    throw new ForbiddenError('Only staff can view booking timelines.');
+  }
+
+  const booking = await Booking.findByPk(Number(bookingId));
+  if (!booking) {
+    throw new NotFoundError('Booking not found');
+  }
+
+  return bookingRepository.getTimeline(Number(bookingId));
+}
+
+/**
+ * Retrieves booking details.
+ * Staff can view any booking; Instructors can view only if assigned to the session.
+ */
+async function getBookingById(bookingId, user) {
+  const booking = await bookingRepository.findById(Number(bookingId));
+  if (!booking) {
+    throw new NotFoundError('Booking not found');
+  }
+
+  if (user.role === 'INSTRUCTOR') {
+    const coInstructorIds = (booking.session?.coInstructors || []).map((ci) => ci.id);
+    const isAssigned =
+      booking.session?.primary_instructor_id === user.id || coInstructorIds.includes(user.id);
+    if (!isAssigned) {
+      throw new ForbiddenError('Instructors can only view bookings for sessions they instruct.');
+    }
+  }
+
+  return booking;
+}
+
+module.exports = {
+  createBooking,
+  cancelBooking,
+  settleAttendance,
+  addStaffNote,
+  getBookingTimeline,
+  getBookingById,
+};

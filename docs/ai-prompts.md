@@ -214,3 +214,31 @@ The AI implemented the recurring schedule service method, repository existence q
 
 * Replaced a generic staff-only 403 test with a domain-specific test verifying an empty result (`{ created: [], skipped: [], summary: { total: 0, ... } }`) is returned when the date range contains no matching weekday.
 * Added clear doc comments to the date, time, and weekday parsing helpers in `session.service.js`.
+
+
+## Booking & Booking Timeline
+
+### Prompt
+
+Implement Booking and Booking Timeline features using the existing layered architecture and project conventions. Add booking creation with capacity/waitlist handling, membership-expiry validation, cancellation with deterministic waitlist promotion, attendance settlement with staff/instructor authorization, and immutable booking timeline history.
+
+Use PostgreSQL transactions with session row-locking for capacity-changing operations, and create timeline entries atomically with booking status changes. Use `change_source = USER/SYSTEM` with `actor_id` for the actor.
+
+Staff can view timelines and add append-only notes; instructors cannot access timelines. Since the existing timeline schema has no `event_type` and `to_status` is non-nullable, represent staff notes with `from_status` and `to_status` both set to the booking's current status.
+
+Add focused integration tests for the core booking, cancellation/promotion, settlement, authorization, and timeline business rules.
+
+### What I got
+
+AI implemented booking creation, waitlisting, cancellation with deterministic waitlist promotion, attendance settlement, authorization, and booking timeline history with atomic transaction handling.
+
+### What I corrected
+
+* Kept the existing `change_source = USER/SYSTEM` design.
+* Clarified that staff notes are append-only timeline entries with `from_status` and `to_status` both set to the current booking status, since the schema has no `event_type` and `to_status` is non-nullable.
+* Clarified that standalone staff notes do not need to be part of a booking-status transaction.
+* Kept timeline entries immutable with no edit/delete operations.
+
+### Result
+
+Booking and Booking Timeline features were implemented and verified with focused integration tests covering the core business rules, concurrency, authorization, and timeline integrity.

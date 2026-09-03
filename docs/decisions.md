@@ -104,3 +104,24 @@
 - **Chose:** If the same class already has a session at the exact requested start time, skip the occurrence with `ALREADY_EXISTS`. The existing session is never modified, even if its duration or capacity differs.
 - **Rejected:** Updating the existing session to match the recurring request, or treating different duration/capacity as a reason to create another session.
 - **Why:** Recurring generation is intended to create missing sessions, not update existing schedules. This prevents an already configured session from being unexpectedly overwritten by a later recurring-generation request.
+
+
+## 16. Serialize booking capacity with a session row lock
+
+- **Chose:** Wrap booking creation and cancellation in PostgreSQL transactions and lock the affected session row with FOR UPDATE before performing capacity-related decisions.
+- **Rejected:** A simple COUNT(BOOKED) followed by an insert/update without locking.
+- **Why:** Two concurrent requests could otherwise both observe the same available capacity and overbook the session. Locking the session serializes capacity-changing operations for that session. The same mechanism also protects cancellation + waitlist promotion from promoting multiple members for one freed spot.
+
+
+## 17. User vs system source for timeline history
+
+- **Chose:** Use the existing change_source ENUM('USER', 'SYSTEM') to distinguish user-driven changes from automatic system changes. User-driven entries store the acting user's id; automatic promotion stores SYSTEM with no acting user.
+- **Rejected:** Adding a separate actor-type field or pretending an automatic promotion was performed by the staff member who triggered the cancellation.
+- **Why:** The timeline must record who made a change, while automatic waitlist promotion has no human actor. The existing change_source field expresses this distinction directly.
+
+
+## 18. Staff notes use the existing timeline schema
+
+- **Chose:** Represent a standalone staff note using from_status = current status and to_status = current status, with change_source = USER, the staff user's id, and the note text.
+- **Rejected:** Adding an event_type column or making to_status nullable solely to represent notes.
+- **Why:** The existing timeline schema already requires to_status and does not have an event-type field. Equal status values distinguish a note from an actual status transition under the current state machine, without changing the schema. Notes are append-only and do not modify the booking status.
