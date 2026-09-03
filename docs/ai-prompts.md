@@ -88,3 +88,36 @@ when the membership is renewed.
 I finalized the initial database schema, relationships, constraints, foreign
 keys, delete behavior, business rules, and indexing strategy before starting
 feature implementation.
+
+
+---
+
+## Database Setup & Seed Data
+
+### Prompt
+
+Using `docs/schema.md` as the source of truth, implement the database
+migrations, Sequelize models, and seed data.
+
+Follow the finalized schema exactly, including relationships, constraints,
+foreign keys, indexes, and delete behavior. Create coherent demo data across
+the relevant tables for development and testing. Do not redesign the schema
+or introduce unsupported functionality.
+
+### What I got
+
+AI successfully implemented the database migrations and seed data with
+realistic data covering the main entities and business scenarios.
+
+### What I corrected
+
+AI initially did not create the Sequelize model files. I identified the
+missing models and added them based on the finalized schema.
+
+I also reviewed the generated migrations and seed data against `schema.md`
+to ensure they matched the documented design.
+
+### Result
+
+Completed the database setup with migrations, Sequelize models, and a
+coherent seed dataset ready for feature implementation and testing.

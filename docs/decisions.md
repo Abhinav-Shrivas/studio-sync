@@ -62,6 +62,4 @@ alert as handled for the studio.
 - **Chose:** Provision the initial staff and instructor accounts through
 database/application seeding. No user-management API is included.
 - **Rejected:** Building staff-facing user creation and management.
-- **Why:** The assignment requires staff and instructor roles but does not
-require user management. Seeding provides the required initial accounts
-without adding functionality outside the assignment scope.
+- **Why:** The assignment requires staff and instructor roles and requires instructors to be assigned to sessions, but Goal 1 does not specify functionality for staff to create or manage user accounts. The explicitly required staff management operations are classes, sessions, members, and bookings. Seeding provides the required accounts without adding functionality outside the assignment scope.
