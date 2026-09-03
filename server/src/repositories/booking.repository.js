@@ -1,5 +1,6 @@
 'use strict';
 
+const { Op } = require('sequelize');
 const { Booking, BookingTimeline, Member, Session, Class, User } = require('../models');
 
 const SESSION_INCLUDES = {
@@ -47,6 +48,17 @@ async function findByMemberAndSession(memberId, sessionId, options = {}) {
     where: {
       member_id: Number(memberId),
       session_id: Number(sessionId),
+    },
+    ...options,
+  });
+}
+
+async function findActiveBooking(memberId, sessionId, options = {}) {
+  return Booking.findOne({
+    where: {
+      member_id: Number(memberId),
+      session_id: Number(sessionId),
+      status: { [Op.in]: ['BOOKED', 'WAITLISTED'] },
     },
     ...options,
   });
@@ -108,6 +120,7 @@ module.exports = {
   create,
   findById,
   findByMemberAndSession,
+  findActiveBooking,
   countBooked,
   findEarliestWaitlisted,
   update,

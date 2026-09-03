@@ -45,12 +45,12 @@ async function createBooking(data, user) {
       throw new NotFoundError('Session not found');
     }
 
-    // Check duplicate booking: UNIQUE(member_id, session_id)
-    const existingBooking = await bookingRepository.findByMemberAndSession(memberId, sessionId, {
+    // Check duplicate active booking: prevent more than one active booking (BOOKED or WAITLISTED)
+    const existingActiveBooking = await bookingRepository.findActiveBooking(memberId, sessionId, {
       transaction: t,
     });
-    if (existingBooking) {
-      throw new ConflictError('Member already has a booking for this session.');
+    if (existingActiveBooking) {
+      throw new ConflictError('Member already has an active booking for this session.');
     }
 
     // Count currently BOOKED members while lock is held

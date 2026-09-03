@@ -179,37 +179,125 @@ describe('Booking & Booking Timeline Features', () => {
       expect(res.body.message).toMatch(/expired/i);
     });
 
-    it('should prevent duplicate booking for the same member and session with 409 Conflict', async () => {
+    it('should prevent duplicate active booking for the same member and session when BOOKED or WAITLISTED with 409 Conflict', async () => {
       const session = await Session.create({
         class_id: testClass.id,
         room: 'Studio Duplicate Check',
         start_time: new Date('2028-04-01T10:00:00.000Z'),
+        duration: 60,
+        capacity: 1,
+        primary_instructor_id: 2,
+      });
+
+      const member1 = await Member.create({
+        name: 'Active Booked Member',
+        email: `booked_${Date.now()}@example.com`,
+        membership_expiry: '2029-01-01',
+      });
+      const member2 = await Member.create({
+        name: 'Active Waitlisted Member',
+        email: `waitlisted_${Date.now()}@example.com`,
+        membership_expiry: '2029-01-01',
+      });
+
+      // Member 1 books -> BOOKED
+      await request(app)
+        .post('/bookings')
+        .set('Authorization', `Bearer ${staffToken}`)
+        .send({ member_id: member1.id, session_id: session.id });
+
+      // Member 1 attempts second booking while BOOKED -> 409
+      const dupBookedRes = await request(app)
+        .post('/bookings')
+        .set('Authorization', `Bearer ${staffToken}`)
+        .send({ member_id: member1.id, session_id: session.id });
+
+      expect(dupBookedRes.status).toBe(409);
+      expect(dupBookedRes.body.success).toBe(false);
+      expect(dupBookedRes.body.message).toMatch(/already has an active booking/i);
+
+      // Member 2 books -> WAITLISTED
+      await request(app)
+        .post('/bookings')
+        .set('Authorization', `Bearer ${staffToken}`)
+        .send({ member_id: member2.id, session_id: session.id });
+
+      // Member 2 attempts second booking while WAITLISTED -> 409
+      const dupWaitlistedRes = await request(app)
+        .post('/bookings')
+        .set('Authorization', `Bearer ${staffToken}`)
+        .send({ member_id: member2.id, session_id: session.id });
+
+      expect(dupWaitlistedRes.status).toBe(409);
+      expect(dupWaitlistedRes.body.success).toBe(false);
+      expect(dupWaitlistedRes.body.message).toMatch(/already has an active booking/i);
+    });
+
+    it('should allow rebooking after cancellation, creating a new booking row with its own timeline and preserving previous history', async () => {
+      const session = await Session.create({
+        class_id: testClass.id,
+        room: 'Studio Rebook Check',
+        start_time: new Date('2028-04-15T10:00:00.000Z'),
         duration: 60,
         capacity: 5,
         primary_instructor_id: 2,
       });
 
       const member = await Member.create({
-        name: 'Duplicate Test Member',
-        email: `duplicate_${Date.now()}@example.com`,
+        name: 'Rebooking Member',
+        email: `rebook_${Date.now()}@example.com`,
         membership_expiry: '2029-01-01',
       });
 
-      // First booking
-      await request(app)
+      // 1. Initial booking: BOOKED
+      const b1Res = await request(app)
         .post('/bookings')
         .set('Authorization', `Bearer ${staffToken}`)
         .send({ member_id: member.id, session_id: session.id });
 
-      // Second booking attempt for same member & session
-      const res = await request(app)
+      expect(b1Res.status).toBe(201);
+      const b1Id = b1Res.body.data.id;
+      expect(b1Res.body.data.status).toBe('BOOKED');
+
+      // 2. Cancel booking 1: CANCELLED
+      const cancelRes = await request(app)
+        .post(`/bookings/${b1Id}/cancel`)
+        .set('Authorization', `Bearer ${staffToken}`);
+
+      expect(cancelRes.status).toBe(200);
+      expect(cancelRes.body.data.booking.status).toBe('CANCELLED');
+
+      // 3. Re-booking: creates a new booking row
+      const b2Res = await request(app)
         .post('/bookings')
         .set('Authorization', `Bearer ${staffToken}`)
         .send({ member_id: member.id, session_id: session.id });
 
-      expect(res.status).toBe(409);
-      expect(res.body.success).toBe(false);
-      expect(res.body.message).toMatch(/already has a booking/i);
+      expect(b2Res.status).toBe(201);
+      const b2Id = b2Res.body.data.id;
+      expect(b2Res.body.data.status).toBe('BOOKED');
+      expect(b2Id).not.toBe(b1Id); // Distinct new booking row
+
+      // 4. Verify previous booking 1 remains intact in database with its timeline
+      const b1Reloaded = await Booking.findByPk(b1Id);
+      expect(b1Reloaded.status).toBe('CANCELLED');
+
+      const b1Timeline = await request(app)
+        .get(`/bookings/${b1Id}/timeline`)
+        .set('Authorization', `Bearer ${staffToken}`);
+
+      expect(b1Timeline.body.data).toHaveLength(2);
+      expect(b1Timeline.body.data[0].to_status).toBe('BOOKED');
+      expect(b1Timeline.body.data[1].to_status).toBe('CANCELLED');
+
+      // 5. Verify new booking 2 has its own fresh initial timeline entry
+      const b2Timeline = await request(app)
+        .get(`/bookings/${b2Id}/timeline`)
+        .set('Authorization', `Bearer ${staffToken}`);
+
+      expect(b2Timeline.body.data).toHaveLength(1);
+      expect(b2Timeline.body.data[0].from_status).toBeNull();
+      expect(b2Timeline.body.data[0].to_status).toBe('BOOKED');
     });
   });
 

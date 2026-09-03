@@ -125,3 +125,19 @@
 - **Chose:** Represent a standalone staff note using from_status = current status and to_status = current status, with change_source = USER, the staff user's id, and the note text.
 - **Rejected:** Adding an event_type column or making to_status nullable solely to represent notes.
 - **Why:** The existing timeline schema already requires to_status and does not have an event-type field. Equal status values distinguish a note from an actual status transition under the current state machine, without changing the schema. Notes are append-only and do not modify the booking status.
+
+
+## 19. Prevent duplicate bookings and allow rebooking after cancellation
+
+- **Chose:** Use a database-level `UNIQUE(member_id, session_id)` constraint to ensure a member cannot create more than one booking for the same session.
+- **Rejected:** Relying only on application-level checks to detect duplicate bookings.
+- **Why:** The database constraint provides a strong final guarantee against duplicate bookings, even if multiple booking requests arrive concurrently. The application can provide a user-friendly conflict response, while the database enforces the invariant.
+- **Later reversed:**
+  - The `UNIQUE(member_id, session_id)` constraint prevented a member from booking the same session again after cancelling their previous booking.
+  - Since cancelled bookings must remain as historical records for booking history and timeline purposes, the old booking cannot simply be deleted or reused.
+  - We therefore removed the unconditional uniqueness constraint and changed the rule to:
+    - Multiple historical bookings for the same member/session are allowed.
+    - Only one active booking (`BOOKED` or `WAITLISTED`) is allowed at a time.
+    - A cancelled booking does not block a new booking.
+    - Rebooking always creates a **new booking row**.
+    - The application checks for an existing active booking before creating the new booking.
