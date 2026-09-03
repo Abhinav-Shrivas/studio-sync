@@ -106,18 +106,39 @@ or introduce unsupported functionality.
 
 ### What I got
 
-AI successfully implemented the database migrations and seed data with
-realistic data covering the main entities and business scenarios.
-
-### What I corrected
-
-AI initially did not create the Sequelize model files. I identified the
-missing models and added them based on the finalized schema.
-
-I also reviewed the generated migrations and seed data against `schema.md`
-to ensure they matched the documented design.
+AI successfully implemented the database migrations, Sequelize models, and
+seed data based on the finalized schema. The generated seed data covered the
+main entities and realistic scenarios needed for development and testing.
 
 ### Result
 
-Completed the database setup with migrations, Sequelize models, and a
-coherent seed dataset ready for feature implementation and testing.
+Database setup was completed successfully, and the migrated and seeded
+database was verified in PostgreSQL.
+
+---
+
+## Authentication & Authorization
+
+### Prompt
+ Implement the authentication and authorization foundation using the existing project structure. Use email/password login with hashed passwords, JWT authentication with a 1-day expiry, and separate authentication and role-authorization middleware. Keep controllers, services, and repositories separated. Do not implement user management or other business features. Add focused tests for authentication and authorization behavior.
+
+### What I got
+
+- Implemented email/password login with hashed password verification.
+- Added JWT authentication with 1-day expiry.
+- Added separate authentication and authorization middleware.
+- Added focused authentication and authorization tests.
+
+### What I corrected
+
+- The initial test suite had redundant unit tests for middleware
+  behavior already covered by HTTP integration tests.
+- I asked the AI to remove the redundant tests and keep
+  behavior-focused coverage.
+
+### Result
+
+- Authentication and authorization implementation completed.
+- Login API verified successfully using Postman.
+- All authentication tests pass.
+- Documentation updated to reflect the implementation and decisions.

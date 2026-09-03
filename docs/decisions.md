@@ -63,3 +63,33 @@ alert as handled for the studio.
 database/application seeding. No user-management API is included.
 - **Rejected:** Building staff-facing user creation and management.
 - **Why:** The assignment requires staff and instructor roles and requires instructors to be assigned to sessions, but Goal 1 does not specify functionality for staff to create or manage user accounts. The explicitly required staff management operations are classes, sessions, members, and bookings. Seeding provides the required accounts without adding functionality outside the assignment scope.
+
+
+## Decision 9
+
+- **Chose:** JWT-based stateless authentication with a 1-day token
+  expiry. The token contains the user ID and role and is stored by the
+  client in localStorage.
+
+- **Rejected:** Server-side session tracking, refresh tokens, OAuth,
+  and cookie-based authentication.
+
+- **Why:** The assignment only requires email/password authentication
+  and server-side role enforcement. A stateless JWT keeps the
+  implementation small and avoids introducing session storage,
+  refresh-token management, or third-party authentication that is
+  outside the assignment scope.
+
+
+  ## Decision 10
+
+- **Chose:** Keep controllers, services, repositories, middleware,
+  models, and utilities separate.
+
+- **Rejected:** Putting database queries and business logic directly
+  inside controllers.
+
+- **Why:** The separation keeps HTTP handling, business logic, and
+  database access independent and makes the backend easier to test,
+  reason about, and extend as the remaining assignment goals are
+  implemented.

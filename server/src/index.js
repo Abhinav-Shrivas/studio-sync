@@ -2,6 +2,8 @@ require('dotenv').config();
 
 const express = require('express');
 const { sequelize } = require('./models');
+const authRoutes = require('./routes/auth.routes');
+const errorHandler = require('./middlewares/errorHandler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -20,6 +22,12 @@ app.get('/health', async (_req, res) => {
   }
 });
 
+// ── Routes ───────────────────────────────────────────────────────
+app.use('/auth', authRoutes);
+
+// ── Error handling ───────────────────────────────────────────────
+app.use(errorHandler);
+
 // ── Start server ─────────────────────────────────────────────────
 async function start() {
   try {
@@ -35,6 +43,8 @@ async function start() {
   }
 }
 
-start();
+if (require.main === module) {
+  start();
+}
 
 module.exports = app;
