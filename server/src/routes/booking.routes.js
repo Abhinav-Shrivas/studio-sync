@@ -18,6 +18,9 @@ router.post('/:id/settle', authenticate, bookingController.settle);
 router.get('/:id/timeline', authenticate, authorize('STAFF'), bookingController.getTimeline);
 router.post('/:id/timeline/notes', authenticate, authorize('STAFF'), bookingController.addNote);
 
+// View booking list (Authenticated: Staff view all, Instructors scoped to primary or co-instructor sessions)
+router.get('/', authenticate, bookingController.list);
+
 // View booking details (Authenticated; Instructors limited to assigned sessions)
 router.get('/:id', authenticate, bookingController.getById);
 

@@ -116,6 +116,69 @@ async function getTimeline(bookingId, options = {}) {
   });
 }
 
+/**
+ * Find bookings with filters, search, pagination, and sorting.
+ * Uses distinct: true and subQuery: false to ensure accurate counts with coInstructors join.
+ */
+async function findAllAndCount(
+  {
+    search = null,
+    classId = null,
+    sessionId = null,
+    status = null,
+    instructorId = null,
+  } = {},
+  { order = [['created_at', 'DESC'], ['id', 'DESC']], limit = 10, offset = 0 } = {}
+) {
+  const where = {};
+  const andConditions = [];
+
+  if (status) {
+    where.status = status;
+  }
+
+  if (sessionId) {
+    where.session_id = Number(sessionId);
+  }
+
+  if (classId) {
+    where['$session.class_id$'] = Number(classId);
+  }
+
+  if (search && search.trim()) {
+    const term = `%${search.trim()}%`;
+    andConditions.push({
+      [Op.or]: [
+        { '$member.name$': { [Op.iLike]: term } },
+        { '$member.email$': { [Op.iLike]: term } },
+      ],
+    });
+  }
+
+  if (instructorId) {
+    andConditions.push({
+      [Op.or]: [
+        { '$session.primary_instructor_id$': Number(instructorId) },
+        { '$session.coInstructors.id$': Number(instructorId) },
+      ],
+    });
+  }
+
+  if (andConditions.length > 0) {
+    where[Op.and] = andConditions;
+  }
+
+  return Booking.findAndCountAll({
+    where,
+    include: [MEMBER_INCLUDES, SESSION_INCLUDES],
+    distinct: true,
+    subQuery: false,
+    order,
+    limit,
+    offset,
+  });
+}
+
 module.exports = {
   create,
   findById,
@@ -126,4 +189,5 @@ module.exports = {
   update,
   createTimelineEntry,
   getTimeline,
+  findAllAndCount,
 };

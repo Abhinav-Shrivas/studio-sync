@@ -141,3 +141,29 @@
     - A cancelled booking does not block a new booking.
     - Rebooking always creates a **new booking row**.
     - The application checks for an existing active booking before creating the new booking.
+
+
+## 20. Case-insensitive partial search
+
+- **Chose:** A single search parameter that performs partial, case-insensitive matching against both member name and email using PostgreSQL `ILIKE`.
+- **Rejected:** Separate name and email search parameters, and exact/case-sensitive matching.
+- **Why:** It gives a simpler API and more useful booking search. A staff member/instructor can search one term without knowing whether it belongs to the member's name or email.
+
+
+## 21. Combined filters
+
+- **Chose:** Allow multiple filters/search conditions to be combined in the same request using `AND` semantics.
+- **Rejected:** Restricting the API to one filter at a time.
+- **Why:** This makes the booking list practically useful—for example, searching a member while simultaneously narrowing results to a specific class and `BOOKED` status. It also naturally maps to database-level query conditions.
+
+
+## 22. Role-based response projection — Later reversed
+
+This is the strongest architectural decision/reversal:
+
+- **Chose initially:** Return the same detailed booking/session representation to Staff and Instructors, because the README specifies resource access, not explicit field-level restrictions.
+- **Rejected initially:** Creating separate endpoints or response formats for each role.
+- **Why initially:** Keep the API simple and avoid inventing restrictions not required by the README.
+- **Later reversed:** We decided that although an instructor is authorized to access a booking/session, they don't necessarily need every administrative/internal field. We therefore kept the same endpoints and database authorization, but added role-based response projection in the service layer.
+    - **Final choice:** Staff keeps the existing detailed response; Instructor receives an instructor-safe projection.
+    - **Why reversed:** Separating resource-level authorization from field-level exposure gives a cleaner least-privilege design without duplicating endpoints or queries.

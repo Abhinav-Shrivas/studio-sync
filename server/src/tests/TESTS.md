@@ -25,7 +25,7 @@ The test suite prioritizes **behavior-driven coverage** over unit duplication, e
 * **Overlap Validation:** Tests the core interval scheduling rule (`existing.start < new.end AND new.start < existing.end`) to block room double-booking and instructor double-booking, while explicitly allowing adjacent back-to-back sessions.
 * **Session Freeze Rule:** Proves sessions can be modified before their scheduled start, but become immutable once the start time passes.
 * **Capacity & Deletion Guards:** Confirms capacity cannot drop below the count of active `BOOKED` members, and sessions with bookings or past start times cannot be deleted.
-* **Instructor Data Isolation:** Verifies server-side authorization filters ensure instructors can only view sessions they are assigned to (as primary or co-instructor) and receive `403 Forbidden` for unrelated sessions.
+* **Instructor Data Isolation & Projection:** Verifies server-side authorization filters ensure instructors can only view sessions they are assigned to (as primary or co-instructor) and receive `403 Forbidden` for unrelated sessions. Proves role-based response projection returns detailed session representations to staff, while restricting instructors to instructor-safe fields (including `capacity`, `room`, `start_time`, `duration`, `class`) and omitting administrative fields (`class.is_archived`, `class.default_capacity`, timestamps).
 
 ### 4. Recurring Schedule Generation (`sessions/recurring-schedule.test.js`)
 * **Weekly Pattern Generation:** Confirms bulk session creation calculates correct dates across an inclusive date range and applies class defaults or custom overrides.
@@ -41,3 +41,12 @@ The test suite prioritizes **behavior-driven coverage** over unit duplication, e
 * **Atomic Waitlist Promotion:** Proves cancelling a `BOOKED` slot promotes the earliest waitlisted booking (`ORDER BY created_at ASC, id ASC`) with `SYSTEM` source, while cancelling a `WAITLISTED` booking promotes no one.
 * **Attendance Settlement:** Validates settling attendance (`ATTENDED`/`NO_SHOW`) only after session start time and verifies instructors can settle only their assigned sessions with an automatic note.
 * **Timeline Integrity & Staff Notes:** Confirms staff can append notes without modifying booking status, while keeping history immutable and hidden from instructors (`403 Forbidden`).
+
+### 6. Booking List, Search, Filters, Sorting & Pagination (`bookings/booking-list.test.js`)
+* **Staff Access & Pagination:** Confirms staff can view paginated bookings with complete pagination metadata (`page`, `limit`, `total`, `totalPages`) and rejects invalid pagination parameters (`400 Bad Request`).
+* **Instructor Access Isolation & Projection:** Proves instructors can only retrieve bookings for sessions where they are primary instructor or assigned as co-instructor (`primary_instructor_id = user.id OR coInstructors.id = user.id`), with isolation guaranteed at the database query level even when attempting query parameter manipulation. Verifies role-based response projection returns detailed booking representations to staff, while restricting instructors to instructor-safe fields (including `session.capacity`) and omitting administrative fields (`member.membership_expiry`, timestamps).
+* **Partial Case-Insensitive Search:** Validates searching across member details (`member.name` OR `member.email`) with partial and case-insensitive matching.
+* **Filter Combination:** Proves combining filters (`search`, `class_id`, `session_id`, `status`) applies `AND` filtering accurately, and invalid statuses are rejected (`400 Bad Request`).
+* **Sorting:** Confirms sorting by `session` accurately orders by `session.start_time` in both ascending and descending directions, as well as sorting by `status`, with disallowed sort fields and invalid sort directions rejected (`400 Bad Request`).
+* **Distinct Booking Counts:** Verifies `findAndCountAll` with `distinct: true` avoids inflated counts when sessions have co-instructors assigned.
+

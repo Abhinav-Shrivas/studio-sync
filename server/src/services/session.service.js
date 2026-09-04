@@ -156,6 +156,50 @@ async function createSession(data, user) {
   });
 }
 
+/**
+ * Staff-facing session response serializer.
+ * Preserves the existing Staff-facing API response representation exactly as it currently exists.
+ */
+function toStaffSessionResponse(session) {
+  return typeof session.toJSON === 'function' ? session.toJSON() : session;
+}
+
+/**
+ * Instructor-facing session response serializer.
+ * Returns only fields required to view/manage sessions they are authorized to access,
+ * excluding internal/administrative fields like capacity, is_archived, default_capacity, timestamps, etc.
+ */
+function toInstructorSessionResponse(session) {
+  const s = typeof session.toJSON === 'function' ? session.toJSON() : session;
+
+  return {
+    id: s.id,
+    room: s.room,
+    start_time: s.start_time,
+    duration: s.duration,
+    capacity: s.capacity,
+    class: s.class
+      ? {
+          id: s.class.id,
+          title: s.class.title,
+          discipline: s.class.discipline,
+        }
+      : null,
+    primaryInstructor: s.primaryInstructor
+      ? {
+          id: s.primaryInstructor.id,
+          name: s.primaryInstructor.name,
+          email: s.primaryInstructor.email,
+        }
+      : null,
+    coInstructors: (s.coInstructors || []).map((ci) => ({
+      id: ci.id,
+      name: ci.name,
+      email: ci.email,
+    })),
+  };
+}
+
 async function getAllSessions(filters = {}, user = null) {
   const queryFilters = { ...filters };
 
@@ -164,7 +208,10 @@ async function getAllSessions(filters = {}, user = null) {
     queryFilters.instructorId = user.id;
   }
 
-  return sessionRepository.findAll(queryFilters);
+  const sessions = await sessionRepository.findAll(queryFilters);
+  const serializer = user && user.role === 'INSTRUCTOR' ? toInstructorSessionResponse : toStaffSessionResponse;
+
+  return sessions.map(serializer);
 }
 
 async function getSessionById(id, user = null) {
@@ -663,4 +710,6 @@ module.exports = {
   addCoInstructor,
   removeCoInstructor,
   generateRecurringSchedule,
+  toStaffSessionResponse,
+  toInstructorSessionResponse,
 };

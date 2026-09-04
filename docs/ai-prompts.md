@@ -89,7 +89,6 @@ I finalized the initial database schema, relationships, constraints, foreign
 keys, delete behavior, business rules, and indexing strategy before starting
 feature implementation.
 
-
 ---
 
 ## Database Setup & Seed Data
@@ -120,7 +119,8 @@ database was verified in PostgreSQL.
 ## Authentication & Authorization
 
 ### Prompt
- Implement the authentication and authorization foundation using the existing project structure. Use email/password login with hashed passwords, JWT authentication with a 1-day expiry, and separate authentication and role-authorization middleware. Keep controllers, services, and repositories separated. Do not implement user management or other business features. Add focused tests for authentication and authorization behavior.
+
+Implement the authentication and authorization foundation using the existing project structure. Use email/password login with hashed passwords, JWT authentication with a 1-day expiry, and separate authentication and role-authorization middleware. Keep controllers, services, and repositories separated. Do not implement user management or other business features. Add focused tests for authentication and authorization behavior.
 
 ### What I got
 
@@ -143,36 +143,37 @@ database was verified in PostgreSQL.
 - All authentication tests pass.
 - Documentation updated to reflect the implementation and decisions.
 
+---
 
 ## Class & Session Management
 
 ### Prompt
 
- Implement the Class and Session Management feature using the existing project structure, schema, authentication/authorization middleware, and layered architecture.
+Implement the Class and Session Management feature using the existing project structure, schema, authentication/authorization middleware, and layered architecture.
 
- Implement:
+Implement:
 
- * Staff-only class CRUD operations except deletion; use archive/restore instead.
+* Staff-only class CRUD operations except deletion; use archive/restore instead.
 * Class title uniqueness across active and archived classes.
- * Class editing, where changes to `default_duration` and `default_capacity` affect only newly created sessions; existing sessions keep their own values.
- * Archive behavior: archiving does not delete sessions or bookings, existing sessions remain bookable, but new sessions cannot be created for an archived class. Restore enables new sessions again.
- * Staff-only session creation, editing, and deletion.
- * Session creation with class defaults copied into the session when duration/capacity are omitted.
- * Session duration and capacity can later be changed independently.
- * Sessions can be edited or deleted only before their scheduled start time. Once started, they are permanently frozen.
- * Sessions with bookings cannot be deleted.
- * Capacity cannot be reduced below the number of currently `BOOKED` members.
- * Exactly one primary instructor, with zero or more co-instructors. The primary instructor cannot also be a co-instructor.
- * Validate room and instructor overlaps using the session start timestamp and duration. Instructor overlap must consider both primary and co-instructor assignments.
- * Instructors can only view sessions where they are the primary instructor or a co-instructor. This authorization must be enforced server-side.
- * When an instructor is authorized to view a session, returning the associated class, primary instructor, and co-instructor information in the response is acceptable; do not add separate response filtering solely for instructors.
- * When changing a session's `class_id`, the target class must exist and must not be archived. Changing the class must not reset the session's existing duration/capacity unless explicitly supplied.
+* Class editing, where changes to `default_duration` and `default_capacity` affect only newly created sessions; existing sessions keep their own values.
+* Archive behavior: archiving does not delete sessions or bookings, existing sessions remain bookable, but new sessions cannot be created for an archived class. Restore enables new sessions again.
+* Staff-only session creation, editing, and deletion.
+* Session creation with class defaults copied into the session when duration/capacity are omitted.
+* Session duration and capacity can later be changed independently.
+* Sessions can be edited or deleted only before their scheduled start time. Once started, they are permanently frozen.
+* Sessions with bookings cannot be deleted.
+* Capacity cannot be reduced below the number of currently `BOOKED` members.
+* Exactly one primary instructor, with zero or more co-instructors. The primary instructor cannot also be a co-instructor.
+* Validate room and instructor overlaps using the session start timestamp and duration. Instructor overlap must consider both primary and co-instructor assignments.
+* Instructors can only view sessions where they are the primary instructor or a co-instructor. This authorization must be enforced server-side.
+* When an instructor is authorized to view a session, returning the associated class, primary instructor, and co-instructor information in the response is acceptable; do not add separate response filtering solely for instructors.
+* When changing a session's `class_id`, the target class must exist and must not be archived. Changing the class must not reset the session's existing duration/capacity unless explicitly supplied.
 
- Keep controllers, services, repositories, and models separated. Reuse the existing error handling, transactions, and conventions. Do not implement booking functionality or other unrelated features.
+Keep controllers, services, repositories, and models separated. Reuse the existing error handling, transactions, and conventions. Do not implement booking functionality or other unrelated features.
 
- Add only the important automated tests for the above business rules. Do not create exhaustive tests for every validation variation or duplicate scenario. Focus on the core class/session behavior, scheduling constraints, instructor assignment, and server-side instructor authorization.
+Add only the important automated tests for the above business rules. Do not create exhaustive tests for every validation variation or duplicate scenario. Focus on the core class/session behavior, scheduling constraints, instructor assignment, and server-side instructor authorization.
 
- Before implementation, inspect the existing codebase and schema and avoid unnecessary structural changes.
+Before implementation, inspect the existing codebase and schema and avoid unnecessary structural changes.
 
 ### What I got
 
@@ -185,6 +186,11 @@ The AI implemented the Class and Session Management feature with the required ro
 * Refined the automated test scope to keep only the **important business-rule tests** instead of maintaining an exhaustive set of 40+ tests.
 * Clarified that `session.class_id` can be changed before the session starts, provided the target class exists and is active. Changing the class does not reset the session's existing duration or capacity.
 
+### Result
+
+Class and Session Management was successfully implemented with strict staff-only access controls, scheduling interval overlap checks, session freeze behavior, and server-side instructor data isolation verified by automated tests.
+
+---
 
 ## Recurring Schedule Generation 
 
@@ -215,6 +221,11 @@ The AI implemented the recurring schedule service method, repository existence q
 * Replaced a generic staff-only 403 test with a domain-specific test verifying an empty result (`{ created: [], skipped: [], summary: { total: 0, ... } }`) is returned when the date range contains no matching weekday.
 * Added clear doc comments to the date, time, and weekday parsing helpers in `session.service.js`.
 
+### Result
+
+Recurring schedule generation was successfully implemented with multi-conflict overlap detection, duplicate session skipping, atomic occurrence creation, and focused integration tests.
+
+---
 
 ## Booking & Booking Timeline
 
@@ -242,3 +253,65 @@ AI implemented booking creation, waitlisting, cancellation with deterministic wa
 ### Result
 
 Booking and Booking Timeline features were implemented and verified with focused integration tests covering the core business rules, concurrency, authorization, and timeline integrity.
+
+---
+
+## Booking List, Search, Filters, Sorting & Pagination
+
+### Prompt
+
+Implement Goal 6: Booking List / Finding Bookings using the existing project structure, authentication/authorization middleware, layered architecture, and Sequelize/PostgreSQL database-level querying.
+
+Implement:
+
+* Staff and instructor `GET /bookings` endpoint.
+* Instructors can only retrieve bookings from sessions where they are the primary instructor or co-instructor.
+* Server-side partial, case-insensitive search across member name and email using a single search parameter.
+* Server-side filters for class, session, and booking status.
+* Allow multiple search/filter conditions to be combined using AND semantics.
+* Server-side sorting by booked time, status, and session start time with whitelisted fields/directions.
+* Server-side pagination using LIMIT/OFFSET, with a default limit of 10.
+* Return total matching result count and pagination metadata.
+* Use `findAndCountAll` with `distinct: true` because of the co-instructor many-to-many join.
+* Add maximum 6 focused integration tests covering access scoping, search, combined filters, sorting, pagination, and total count.
+
+### What I got
+
+The AI implemented the booking list endpoint with database-level search, filtering, sorting, pagination, instructor access scoping, and total-count handling.
+
+### What I corrected
+
+* Kept a single case-insensitive partial search parameter for both member name and email instead of separate search parameters.
+* Allowed multiple filters/search conditions to be combined using AND semantics.
+* Kept pagination database-side using LIMIT/OFFSET with a default page size of 10.
+* Added deterministic secondary sorting by booking ID for stable pagination.
+* Added `distinct: true` to prevent incorrect counts caused by the co-instructor many-to-many join.
+
+### Result
+
+The booking list endpoint was implemented and verified with focused integration tests covering role-based access scoping, combined search/filters, sorting by session start time, and pagination with distinct count guarantees.
+
+---
+
+## Role-Based Response Projection
+
+### Prompt
+
+Update GET /bookings and GET /sessions to use role-based response projection while keeping the existing endpoints, database queries, authorization scoping, and search/filter/sort/pagination behavior unchanged.
+
+Implement the response projection in the service layer using dedicated serializers/mappers.
+
+Staff should retain the existing Staff-facing response representation.
+Instructors should receive only the fields required for their operational view.
+For booking responses, omit unnecessary administrative fields such as member membership expiry and session capacity.
+For session responses, include actual session capacity but omit class archival/default-capacity fields and database timestamps.
+Do not create separate endpoints or duplicate repository queries.
+Preserve the existing API field naming convention, including createdAt.
+
+### What I got
+
+The AI correctly implemented the role-based response projection in the service layer for both booking and session lists, while preserving the existing endpoints, database queries, and authorization scoping.
+
+### Result
+
+Role-based response projection was implemented across both booking and session lists in the service layer and verified with focused integration tests proving staff receives the full detailed representation and instructors receive the restricted operational projection.

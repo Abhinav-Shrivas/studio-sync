@@ -74,6 +74,19 @@ async function getById(req, res, next) {
   }
 }
 
+async function list(req, res, next) {
+  try {
+    const result = await bookingService.listBookings(req.query, req.user);
+    res.status(200).json({
+      success: true,
+      data: result.bookings,
+      pagination: result.pagination,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   create,
   cancel,
@@ -81,4 +94,5 @@ module.exports = {
   addNote,
   getTimeline,
   getById,
+  list,
 };

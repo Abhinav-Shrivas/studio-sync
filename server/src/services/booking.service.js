@@ -302,6 +302,195 @@ async function getBookingById(bookingId, user) {
   return booking;
 }
 
+const VALID_BOOKING_STATUSES = ['BOOKED', 'WAITLISTED', 'CANCELLED', 'ATTENDED', 'NO_SHOW'];
+const VALID_SORT_FIELDS = ['booked_at', 'status', 'session'];
+const VALID_SORT_ORDERS = ['ASC', 'DESC'];
+
+/**
+ * List bookings with filtering, search, sorting, pagination, and role-based scoping.
+ */
+async function listBookings(query = {}, user) {
+  let {
+    page = 1,
+    limit = 10,
+    search,
+    class_id,
+    session_id,
+    status,
+    sort_by = 'booked_at',
+    sort_order = 'DESC',
+  } = query;
+
+  // Validate pagination
+  const pageNum = Number(page);
+  if (!Number.isInteger(pageNum) || pageNum < 1) {
+    throw new ValidationError('Page must be a positive integer');
+  }
+
+  const limitNum = Number(limit);
+  if (!Number.isInteger(limitNum) || limitNum < 1) {
+    throw new ValidationError('Limit must be a positive integer');
+  }
+  const cappedLimit = Math.min(limitNum, 100);
+
+  // Validate status filter if provided
+  let normalizedStatus = null;
+  if (status) {
+    normalizedStatus = String(status).toUpperCase();
+    if (!VALID_BOOKING_STATUSES.includes(normalizedStatus)) {
+      throw new ValidationError(`Invalid booking status: ${status}`);
+    }
+  }
+
+  // Validate class_id filter if provided
+  let classId = null;
+  if (class_id !== undefined && class_id !== null && class_id !== '') {
+    classId = Number(class_id);
+    if (!Number.isInteger(classId) || classId <= 0) {
+      throw new ValidationError('Invalid class ID');
+    }
+  }
+
+  // Validate session_id filter if provided
+  let sessionId = null;
+  if (session_id !== undefined && session_id !== null && session_id !== '') {
+    sessionId = Number(session_id);
+    if (!Number.isInteger(sessionId) || sessionId <= 0) {
+      throw new ValidationError('Invalid session ID');
+    }
+  }
+
+  // Validate sort_by
+  const normalizedSortBy = String(sort_by).toLowerCase();
+  if (!VALID_SORT_FIELDS.includes(normalizedSortBy)) {
+    throw new ValidationError(`Invalid sort_by field: ${sort_by}`);
+  }
+
+  // Validate sort_order
+  const normalizedSortOrder = String(sort_order).toUpperCase();
+  if (!VALID_SORT_ORDERS.includes(normalizedSortOrder)) {
+    throw new ValidationError(`Invalid sort_order: ${sort_order}`);
+  }
+
+  // Map sort_by to database order
+  let order;
+  if (normalizedSortBy === 'booked_at') {
+    order = [
+      ['created_at', normalizedSortOrder],
+      ['id', normalizedSortOrder],
+    ];
+  } else if (normalizedSortBy === 'status') {
+    order = [
+      ['status', normalizedSortOrder],
+      ['id', 'ASC'],
+    ];
+  } else if (normalizedSortBy === 'session') {
+    order = [
+      [{ model: Session, as: 'session' }, 'start_time', normalizedSortOrder],
+      ['id', 'ASC'],
+    ];
+  }
+
+  // Role-based authorization scoping
+  let instructorId = null;
+  if (user.role === 'INSTRUCTOR') {
+    instructorId = user.id;
+  } else if (user.role !== 'STAFF') {
+    throw new ForbiddenError('Unauthorized to view bookings');
+  }
+
+  const offset = (pageNum - 1) * cappedLimit;
+
+  const { count, rows } = await bookingRepository.findAllAndCount(
+    {
+      search: typeof search === 'string' ? search : null,
+      classId,
+      sessionId,
+      status: normalizedStatus,
+      instructorId,
+    },
+    {
+      order,
+      limit: cappedLimit,
+      offset,
+    }
+  );
+
+  const totalPages = Math.ceil(count / cappedLimit);
+  const serializer = user.role === 'INSTRUCTOR' ? toInstructorBookingResponse : toStaffBookingResponse;
+
+  return {
+    bookings: rows.map(serializer),
+    pagination: {
+      page: pageNum,
+      limit: cappedLimit,
+      total: count,
+      totalPages,
+    },
+  };
+}
+
+/**
+ * Staff-facing booking response serializer.
+ * Preserves the existing Staff-facing API response representation exactly as it currently exists.
+ */
+function toStaffBookingResponse(booking) {
+  return typeof booking.toJSON === 'function' ? booking.toJSON() : booking;
+}
+
+/**
+ * Instructor-facing booking response serializer.
+ * Returns only fields necessary for an instructor to manage/view bookings for their authorized sessions,
+ * excluding administrative fields such as membership expiry, session capacity, and internal timestamps.
+ */
+function toInstructorBookingResponse(booking) {
+  const b = typeof booking.toJSON === 'function' ? booking.toJSON() : booking;
+
+  return {
+    id: b.id,
+    member_id: b.member_id,
+    session_id: b.session_id,
+    status: b.status,
+    settled_at: b.settled_at,
+    createdAt: b.createdAt,
+    member: b.member
+      ? {
+          id: b.member.id,
+          name: b.member.name,
+          email: b.member.email,
+        }
+      : null,
+    session: b.session
+      ? {
+          id: b.session.id,
+          room: b.session.room,
+          start_time: b.session.start_time,
+          duration: b.session.duration,
+          capacity: b.session.capacity,
+          class: b.session.class
+            ? {
+                id: b.session.class.id,
+                title: b.session.class.title,
+                discipline: b.session.class.discipline,
+              }
+            : null,
+          primaryInstructor: b.session.primaryInstructor
+            ? {
+                id: b.session.primaryInstructor.id,
+                name: b.session.primaryInstructor.name,
+                email: b.session.primaryInstructor.email,
+              }
+            : null,
+          coInstructors: (b.session.coInstructors || []).map((ci) => ({
+            id: ci.id,
+            name: ci.name,
+            email: ci.email,
+          })),
+        }
+      : null,
+  };
+}
+
 module.exports = {
   createBooking,
   cancelBooking,
@@ -309,4 +498,7 @@ module.exports = {
   addStaffNote,
   getBookingTimeline,
   getBookingById,
+  listBookings,
+  toStaffBookingResponse,
+  toInstructorBookingResponse,
 };

@@ -350,4 +350,41 @@ describe('Session Management API', () => {
     expect(unrelatedRes.status).toBe(403);
     expect(unrelatedRes.body.success).toBe(false);
   });
+
+  it('should return role-based response projection for GET /sessions: detailed for staff, restricted for instructor', async () => {
+    // 1. Staff receives detailed session representation
+    const staffRes = await request(app)
+      .get('/sessions')
+      .set('Authorization', `Bearer ${staffToken}`);
+
+    expect(staffRes.status).toBe(200);
+    const staffSession = staffRes.body.data[0];
+    expect(staffSession.capacity).toBeDefined();
+    expect(staffSession.createdAt).toBeDefined();
+    expect(staffSession.class.is_archived).toBeDefined();
+    expect(staffSession.class.default_capacity).toBeDefined();
+
+    // 2. Instructor receives only instructor-safe fields
+    const instRes = await request(app)
+      .get('/sessions')
+      .set('Authorization', `Bearer ${instructorToken}`);
+
+    expect(instRes.status).toBe(200);
+    const instSession = instRes.body.data[0];
+    expect(instSession.id).toBeDefined();
+    expect(instSession.room).toBeDefined();
+    expect(instSession.start_time).toBeDefined();
+    expect(instSession.duration).toBeDefined();
+    expect(instSession.capacity).toBeDefined();
+    expect(instSession.class.id).toBeDefined();
+    expect(instSession.class.title).toBeDefined();
+    expect(instSession.class.discipline).toBeDefined();
+
+    // Ensure administrative fields are omitted for instructor
+    expect(instSession.createdAt).toBeUndefined();
+    expect(instSession.updatedAt).toBeUndefined();
+    expect(instSession.class.is_archived).toBeUndefined();
+    expect(instSession.class.default_capacity).toBeUndefined();
+    expect(instSession.class.default_duration).toBeUndefined();
+  });
 });
