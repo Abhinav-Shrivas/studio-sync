@@ -167,3 +167,16 @@ This is the strongest architectural decision/reversal:
 - **Later reversed:** We decided that although an instructor is authorized to access a booking/session, they don't necessarily need every administrative/internal field. We therefore kept the same endpoints and database authorization, but added role-based response projection in the service layer.
     - **Final choice:** Staff keeps the existing detailed response; Instructor receives an instructor-safe projection.
     - **Why reversed:** Separating resource-level authorization from field-level exposure gives a cleaner least-privilege design without duplicating endpoints or queries.
+
+
+## 23. Membership alert dismissal state
+
+- **Chose:** Store membership-alert dismissal as a one-to-one current state per member in `member_alert_dismissals`. The table stores `member_id`, `dismissed_by`, and `dismissed_at`. A dismissal row means the current membership-expiry alert has been dismissed.
+- **Rejected:** Maintaining dismissal history for each membership-expiry cycle.
+- **Why:** Goal 10 only requires that a dismissed alert can reappear when the member receives a new, later expiry date. It does not require historical dismissal records. A single current dismissal state is therefore sufficient and keeps the model simple.
+- **Later reversed:** The initial design included a `dismissed_expiry` column to record which membership expiry was dismissed. The idea was to keep the dismissal row after a membership renewal and compare `dismissed_expiry` with the member's current expiry date to determine whether the dismissal still applied.
+
+  During implementation planning, this was reconsidered. Since the table represents only the **current dismissal state** rather than historical dismissals, retaining the old dismissal after the membership expiry changes was unnecessary. The final design deletes the member's dismissal row whenever the membership expiry date changes, starting a fresh alert cycle.
+
+  The `dismissed_expiry` column was therefore removed.
+- **Final rule:** A dismissal row exists only while the current membership expiry has been dismissed. There is no "undismissed" row in the table (`dismissed_by` and `dismissed_at` are required `NOT NULL`). Absence of a row means the alert is not dismissed; presence of a row means it has been dismissed. Changing the member's expiry date updates the membership and removes any existing dismissal record. When the new expiry later enters the seven-day alert window, the member can receive and dismiss a new alert.

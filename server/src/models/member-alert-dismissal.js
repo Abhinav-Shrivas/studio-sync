@@ -30,15 +30,11 @@ module.exports = (sequelize, DataTypes) => {
       },
       dismissed_by: {
         type: DataTypes.INTEGER,
-        allowNull: true,
+        allowNull: false,
       },
       dismissed_at: {
         type: DataTypes.DATE,
-        allowNull: true,
-      },
-      dismissed_expiry: {
-        type: DataTypes.DATEONLY,
-        allowNull: true,
+        allowNull: false,
       },
     },
     {

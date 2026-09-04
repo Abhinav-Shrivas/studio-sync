@@ -278,11 +278,9 @@ module.exports = {
     // ════════════════════════════════════════════════════════════════
     await queryInterface.bulkInsert('member_alert_dismissals', [
       // Siddharth (expired, dismissed by staff)
-      { id: 1, member_id: 12, dismissed_by: staffId, dismissed_at: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000), dismissed_expiry: dateOnly(daysFromNow(-10)) },
+      { id: 1, member_id: 12, dismissed_by: staffId, dismissed_at: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000) },
       // Pooja (expired, dismissed by staff)
-      { id: 2, member_id: 13, dismissed_by: staffId, dismissed_at: new Date(now.getTime() - 20 * 24 * 60 * 60 * 1000), dismissed_expiry: dateOnly(daysFromNow(-30)) },
-      // Neha (expiring in 3 days, not yet dismissed — record exists but fields are null)
-      { id: 3, member_id: 9,  dismissed_by: null, dismissed_at: null, dismissed_expiry: null },
+      { id: 2, member_id: 13, dismissed_by: staffId, dismissed_at: new Date(now.getTime() - 20 * 24 * 60 * 60 * 1000) },
     ]);
 
     await queryInterface.sequelize.query(`SELECT setval('"member_alert_dismissals_id_seq"', (SELECT MAX(id) FROM "member_alert_dismissals"));`);

@@ -253,9 +253,8 @@ Stores the current membership-expiry alert dismissal state for each member.
 |---|---|---|
 | `id` | INT | PK, AUTO_INCREMENT |
 | `member_id` | INT | NOT NULL, UNIQUE, FK → `members.id` |
-| `dismissed_by` | INT | NULL, FK → `users.id` |
-| `dismissed_at` | DATETIME | NULL |
-| `dismissed_expiry` | DATE | NULL |
+| `dismissed_by` | INT | NOT NULL, FK → `users.id` |
+| `dismissed_at` | DATETIME | NOT NULL |
 
 Foreign keys:
 
@@ -269,17 +268,16 @@ dismissed_by → users.id
 
 Notes:
 
-- The table stores the current dismissal state for each member rather than maintaining dismissal history.
-- `dismissed_expiry` identifies the membership expiry associated with the current dismissal, allowing the alert to reappear after a later renewal.
-- `dismissed_by`, `dismissed_at`, and `dismissed_expiry` are nullable because the alert may not have been dismissed yet.
+- `member_alert_dismissals` stores only actual dismissals. A row is created when a staff member dismisses an alert.
+- There is no "undismissed" state stored in the table; absence of a row indicates the member's current alert has not been dismissed.
+- `dismissed_by` and `dismissed_at` are required (`NOT NULL`).
+- A dismissal row is deleted when the member's membership expiry date changes, starting a fresh alert cycle.
+- `dismissed_expiry` does not exist.
 - No `created_at` / `updated_at` because this table stores the member's current alert-dismissal state rather than a history of dismissal events.
 - `member_id` is unique, giving a one-to-one relationship with `members`.
+- No additional index is currently required beyond the primary key and the unique `member_id` index.
 
-Additional index:
 
-```text
-INDEX(dismissed_expiry)
-```
 
 ---
 
@@ -414,7 +412,7 @@ Indexes are added based on actual access patterns rather than indexing every for
 | `bookings` | `INDEX(member_id, session_id)` | Member/session booking lookup |
 | `bookings` | `INDEX(session_id, status)` | Session status operations |
 | `booking_timeline` | `INDEX(booking_id)` | Retrieve a booking's history |
-| `member_alert_dismissals` | `INDEX(dismissed_expiry)` | Expiry-based alert queries |
+| `member_alert_dismissals` | None additional | Unique `member_id` already indexed |
 
 Unique constraints and primary keys already provide their corresponding indexes, so duplicate indexes are avoided.
 
