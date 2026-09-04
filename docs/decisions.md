@@ -180,3 +180,24 @@ This is the strongest architectural decision/reversal:
 
   The `dismissed_expiry` column was therefore removed.
 - **Final rule:** A dismissal row exists only while the current membership expiry has been dismissed. There is no "undismissed" row in the table (`dismissed_by` and `dismissed_at` are required `NOT NULL`). Absence of a row means the alert is not dismissed; presence of a row means it has been dismissed. Changing the member's expiry date updates the membership and removes any existing dismissal record. When the new expiry later enters the seven-day alert window, the member can receive and dismiss a new alert.
+
+
+## 26. Alert response structure and derived values
+
+- **Chose:** Return membership alerts in two categories: `membershipExpired` and `membershipExpires`, along with a count of currently active, non-dismissed alerts. The backend also calculates and returns `daysAgo` for expired members and `daysRemaining` for members whose memberships are expiring.
+- **Rejected:** Returning only expiry dates and requiring the frontend to categorize alerts, calculate day differences, or determine the alert count.
+- **Why:** This keeps membership-alert business and date logic centralized on the backend and provides the frontend with a ready-to-use response for displaying alerts and the navigation badge.
+
+
+## 27. Staff-only membership alerts
+
+- **Chose:** Membership alerts are accessible only to STAFF.
+- **Rejected:** Allowing members or instructors to retrieve membership alerts.
+- **Why:** Membership expiry alerts are a studio operational feature, not a member-facing notification. Authorization is enforced server-side rather than relying on the UI.
+
+
+## 28. Expiry change starts a fresh alert cycle
+
+- **Chose:** When staff changes a member's expiry date, delete any existing dismissal record only if the expiry date actually changes.
+- **Rejected:** Keeping the old dismissal after renewal.
+- **Why:** A new expiry represents a new membership-expiry alert cycle. Deleting the old dismissal allows the member to become eligible for a new alert when the new expiry enters the seven-day window.

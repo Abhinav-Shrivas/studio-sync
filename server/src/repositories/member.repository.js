@@ -13,7 +13,17 @@ async function findByEmail(email, options = {}) {
   });
 }
 
+async function update(id, updateData, options = {}) {
+  const member = await findById(id, options);
+  if (!member) {
+    return null;
+  }
+  return member.update(updateData, options);
+}
+
 module.exports = {
   findById,
   findByEmail,
+  update,
 };
+

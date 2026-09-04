@@ -315,3 +315,61 @@ The AI correctly implemented the role-based response projection in the service l
 ### Result
 
 Role-based response projection was implemented across both booking and session lists in the service layer and verified with focused integration tests proving staff receives the full detailed representation and instructors receive the restricted operational projection.
+
+---
+
+## Membership Alerts — implementation
+
+### Prompt
+
+Implement the backend for **Goal 10: Expiring Membership Alerts** according to the finalized design decisions.
+
+Before making changes, inspect the existing project structure, authentication/authorization, member model, repository/service/controller/route conventions, transaction patterns, database schema, and test structure.
+
+The feature must:
+
+* Dynamically calculate membership-expiry alerts when staff requests `GET /membership-alerts`; do not use cron jobs or persisted alert records.
+* Include already-expired members and members whose membership expires today or within the next seven days.
+* Exclude members whose expiry is more than seven days away.
+* Return alerts in two categories: `membershipExpired` and `membershipExpires`.
+* Calculate and return `daysAgo` for expired memberships and `daysRemaining` for upcoming expiries.
+* Return an active alert `count` that can be used directly by the frontend navigation badge.
+* Allow only studio staff to retrieve and dismiss membership alerts.
+* Implement `POST /membership-alerts/:memberId/dismiss`.
+* Store dismissal state in the existing `member_alert_dismissals` table.
+* A dismissal row exists only after an alert is actually dismissed.
+* Store the authenticated staff user's id in `dismissed_by` and the dismissal timestamp in `dismissed_at`.
+* Dismissing an alert must not modify the member's membership expiry.
+* A dismissed alert must not reappear while the membership expiry remains unchanged.
+* When staff changes a member's membership expiry through `PATCH /members/:id`, delete the existing dismissal row only when the expiry date actually changes.
+* Perform the membership expiry update and dismissal deletion atomically in the same database transaction.
+* If the new expiry is more than seven days away, the member should not appear in alerts.
+* Once the new expiry enters the seven-day window, the alert should reappear and be dismissible again.
+* Do not reintroduce the removed `dismissed_expiry` column.
+* Do not expose a generic endpoint for raw `member_alert_dismissals` records.
+* Add focused integration tests covering the major business rules rather than creating a test for every individual assertion.
+
+Use the existing layered architecture and conventions rather than introducing unrelated abstractions or modifying other features.
+
+### What I got
+
+The implementation added dynamic membership-alert retrieval and staff-only dismissal, with the alert response divided into `membershipExpired` and `membershipExpires` and including backend-calculated day differences and the active alert count.
+
+The dismissal flow creates a `member_alert_dismissals` row containing the authenticated staff user and dismissal timestamp. Membership expiry changes use a transaction to update the member and remove the existing dismissal when the expiry actually changes, allowing a fresh alert cycle.
+
+Focused integration tests were added for alert eligibility/categorization, authorization, dismissal and audit data, dismissal persistence, expiry-reset behavior, reappearance, and re-dismissal.
+
+### What I corrected
+
+During design review, the initial dismissal model included a `dismissed_expiry` column so the system could keep a dismissal row and determine whether it still applied after a membership renewal.
+
+I rejected that approach after reviewing the lifecycle more carefully. The dismissal table is intended to represent only the **current dismissal state**, not dismissal history. When the membership expiry changes, the old dismissal is therefore no longer relevant.
+
+The final design removes the dismissal row when the expiry changes and starts a fresh alert cycle. `dismissed_expiry` was removed from the schema, and `dismissed_by` and `dismissed_at` were finalized as required fields because a dismissal row is created only when an alert is actually dismissed.
+
+I also deliberately did not add a `GET /member-alert-dismissals` endpoint. The frontend needs the business-level membership-alert view, not the underlying dismissal table.
+
+### Result
+
+Goal 10 backend was fully implemented and verified with 7 focused integration tests covering dynamic alert calculation, staff-only RBAC, dismissal persistence, and atomic renewal reset in a database transaction.
+

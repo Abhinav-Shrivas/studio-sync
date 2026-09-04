@@ -50,3 +50,13 @@ The test suite prioritizes **behavior-driven coverage** over unit duplication, e
 * **Sorting:** Confirms sorting by `session` accurately orders by `session.start_time` in both ascending and descending directions, as well as sorting by `status`, with disallowed sort fields and invalid sort directions rejected (`400 Bad Request`).
 * **Distinct Booking Counts:** Verifies `findAndCountAll` with `distinct: true` avoids inflated counts when sessions have co-instructors assigned.
 
+### 7. Expiring Membership Alerts (`alerts/member-alert.test.js`)
+* **Alert Retrieval, Categorization & Count:** Verifies staff can retrieve active alerts categorized into `membershipExpired` (with backend-calculated `daysAgo`) and `membershipExpires` (with backend-calculated `daysRemaining`, where 0 indicates today), while members expiring after 7 days are excluded and total `count` equals the sum of both categories.
+* **Role-Based Authorization:** Confirms `GET /membership-alerts` and `POST /membership-alerts/:memberId/dismiss` strictly enforce staff-only access, rejecting `INSTRUCTOR` and simulated `MEMBER` requests with `403 Forbidden`, and unauthenticated requests with `401 Unauthorized`.
+* **Staff Dismissal & Audit Data:** Proves dismissing an eligible alert creates an immutable record in `member_alert_dismissals` with `dismissed_by = staffId` and `dismissed_at` timestamp, while preserving member expiry intact.
+* **Dismissal Persistence & Count:** Confirms dismissed members are excluded from future alert listings, active `count` decrements, and duplicate dismissal attempts are rejected with `409 Conflict`.
+* **Atomic Renewal Reset:** Validates date validation on `PATCH /members/:id`, proves updating non-expiry fields or providing identical expiry preserves the dismissal, and confirms changing `membership_expiry` to a new date atomically deletes the member's dismissal record in a single database transaction.
+* **Alert Reappearance Lifecycle:** Proves a renewed member with expiry > 7 days is hidden from alerts, but automatically reappears under `membershipExpires` once the expiry date enters the 7-day window.
+* **Re-dismissal Cycle:** Verifies newly reappeared alerts can be dismissed again by staff, creating a fresh dismissal record and hiding the alert.
+
+
