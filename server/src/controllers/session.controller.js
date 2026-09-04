@@ -113,6 +113,19 @@ async function generateRecurring(req, res, next) {
   }
 }
 
+async function exportAttendance(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { csvContent, filename } = await sessionService.exportSessionAttendanceCsv(id, req.user);
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.status(200).send(csvContent);
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   create,
   list,
@@ -122,4 +135,6 @@ module.exports = {
   addCoInstructor,
   removeCoInstructor,
   generateRecurring,
+  exportAttendance,
 };
+

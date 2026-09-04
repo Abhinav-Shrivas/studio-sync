@@ -201,3 +201,10 @@ This is the strongest architectural decision/reversal:
 - **Chose:** When staff changes a member's expiry date, delete any existing dismissal record only if the expiry date actually changes.
 - **Rejected:** Keeping the old dismissal after renewal.
 - **Why:** A new expiry represents a new membership-expiry alert cycle. Deleting the old dismissal allows the member to become eligible for a new alert when the new expiry enters the seven-day window.
+
+
+## 29. Session attendance CSV export architecture, universal escaping, and deterministic filename
+
+- **Chose:** Export attendance on a dedicated per-session endpoint (`GET /sessions/:id/attendance/export`) restricted to studio staff and assigned instructors (primary and co-instructors). Construct the CSV dynamically by querying the session and its bookings, serializing every cell—including session metadata key-value rows, headers, and booking records—strictly through an RFC 4180 serializer (`toCsvRow()` / `escapeCsvCell()`). Co-instructor names are emitted as a single joined cell (`Co-Instructors,{name1}; {name2}`) passed through `toCsvRow()`. The download header uses a deterministic sanitized filename: `attendance-{sanitized-class-title}-{session-date}.csv`.
+- **Rejected:** Interpolating raw unescaped template strings for metadata rows; allowing unassigned instructors or members to export attendance; emitting co-instructors across variable numbers of unescaped columns.
+- **Why:** Reusing existing session authorization (`getSessionById`) ensures instructor access parity across viewing and reporting. Universal cell-level escaping prevents commas, double quotes, and embedded newlines in class titles, room names, instructor names, or member details from breaking CSV columns or rows. Deterministic sanitized filenames provide clean, readable filenames across operating systems.

@@ -179,6 +179,20 @@ async function findAllAndCount(
   });
 }
 
+async function findBookingsBySessionId(sessionId, options = {}) {
+  return Booking.findAll({
+    where: {
+      session_id: Number(sessionId),
+    },
+    include: [MEMBER_INCLUDES],
+    order: [
+      ['created_at', 'ASC'],
+      ['id', 'ASC'],
+    ],
+    ...options,
+  });
+}
+
 module.exports = {
   create,
   findById,
@@ -190,4 +204,6 @@ module.exports = {
   createTimelineEntry,
   getTimeline,
   findAllAndCount,
+  findBookingsBySessionId,
 };
+

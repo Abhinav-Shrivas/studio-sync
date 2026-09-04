@@ -19,6 +19,8 @@ router.delete('/:id/co-instructors/:instructorId', authenticate, authorize('STAF
 
 // Authenticated view routes (Instructors restricted server-side)
 router.get('/', authenticate, sessionController.list);
+router.get('/:id/attendance/export', authenticate, authorize('STAFF', 'INSTRUCTOR'), sessionController.exportAttendance);
 router.get('/:id', authenticate, sessionController.getById);
 
 module.exports = router;
+

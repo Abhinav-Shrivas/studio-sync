@@ -59,4 +59,11 @@ The test suite prioritizes **behavior-driven coverage** over unit duplication, e
 * **Alert Reappearance Lifecycle:** Proves a renewed member with expiry > 7 days is hidden from alerts, but automatically reappears under `membershipExpires` once the expiry date enters the 7-day window.
 * **Re-dismissal Cycle:** Verifies newly reappeared alerts can be dismissed again by staff, creating a fresh dismissal record and hiding the alert.
 
+### 8. Session Attendance CSV Export (`sessions/session-attendance-export.test.js`)
+* **Authorization & Access Control:** Proves studio staff can export attendance for any session, primary instructors can export their assigned sessions, co-instructors can export sessions they are assigned to, and unrelated instructors are strictly forbidden with `403 Forbidden`.
+* **Successful Export & Filename Convention:** Verifies HTTP 200 response with `Content-Type: text/csv; charset=utf-8`, and validates attachment header follows `attendance-{sanitized-class-title}-{session-date}.csv`. Structurally parses the CSV to verify metadata block key-values (`Class`, `Discipline`, `Session Date`, `Start Time`, `Duration`, `Room`, `Primary Instructor`, `Co-Instructors`, `Capacity`), standard column headers (`Member Name`, `Member Email`, `Final Status`, `Booking Date`), and all bookings across final statuses (`ATTENDED`, `NO_SHOW`, `CANCELLED`, `BOOKED`).
+* **Universal RFC 4180 Escaping:** Verifies that commas, double quotes, and embedded newlines across session metadata, instructor lists, and member records are properly escaped and preserved without corrupting the 2D CSV structure.
+* **Empty Session Handling:** Confirms exporting a session with zero bookings succeeds with HTTP 200, outputting all metadata rows, blank separator, and table column headers with exactly zero booking data rows.
+
+
 

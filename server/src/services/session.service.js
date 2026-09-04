@@ -4,7 +4,10 @@ const { sequelize } = require('../models');
 const sessionRepository = require('../repositories/session.repository');
 const classRepository = require('../repositories/class.repository');
 const userRepository = require('../repositories/user.repository');
+const bookingRepository = require('../repositories/booking.repository');
+const { toCsvRow, sanitizeFilename } = require('../utils/csv');
 const { ValidationError, NotFoundError, ForbiddenError, ConflictError } = require('../utils/errors');
+
 
 /**
  * Calculates the full session end timestamp by adding duration in minutes
@@ -697,6 +700,68 @@ async function generateRecurringSchedule(data, user = null) {
   };
 }
 
+/**
+ * Exports a session's attendance and booking details as RFC 4180-compliant CSV.
+ * Requires STAFF role or assigned INSTRUCTOR (primary or co-instructor).
+ *
+ * @param {number|string} sessionId - Session ID
+ * @param {object} user - Authenticated user context
+ * @returns {Promise<{csvContent: string, filename: string}>}
+ */
+async function exportSessionAttendanceCsv(sessionId, user) {
+  if (!user || !['STAFF', 'INSTRUCTOR'].includes(user.role)) {
+    throw new ForbiddenError('Only staff and instructors can export attendance');
+  }
+
+  // 1. Authorize session access
+  const session = await getSessionById(sessionId, user);
+
+  // 2. Fetch all bookings for the session
+  const bookings = await bookingRepository.findBookingsBySessionId(sessionId);
+
+  // 3. Format session date and time
+  const startDate = new Date(session.start_time);
+  const sessionDate = !isNaN(startDate.getTime()) ? startDate.toISOString().slice(0, 10) : '';
+  const startTime = !isNaN(startDate.getTime()) ? startDate.toISOString().slice(11, 16) : '';
+
+  // 4. Format co-instructors
+  const coInstructorNames = (session.coInstructors || []).map((ci) => ci.name);
+
+  // 5. Serialize all metadata and booking rows strictly through toCsvRow()
+  const lines = [
+    toCsvRow(['Session Attendance Report']),
+    toCsvRow(['Class', session.class ? session.class.title : '']),
+    toCsvRow(['Discipline', session.class ? session.class.discipline : '']),
+    toCsvRow(['Session Date', sessionDate]),
+    toCsvRow(['Start Time', startTime]),
+    toCsvRow(['Duration', `${session.duration} minutes`]),
+    toCsvRow(['Room', session.room]),
+    toCsvRow(['Primary Instructor', session.primaryInstructor ? session.primaryInstructor.name : '']),
+    toCsvRow(['Co-Instructors', coInstructorNames.length ? coInstructorNames.join('; ') : 'None']),
+    toCsvRow(['Capacity', session.capacity]),
+    toCsvRow([]),
+    toCsvRow(['Member Name', 'Member Email', 'Final Status', 'Booking Date']),
+    ...bookings.map((b) => {
+      const createdAt = b.createdAt || b.created_at;
+      const bookingDate = createdAt ? new Date(createdAt).toISOString().slice(0, 10) : '';
+      return toCsvRow([
+        b.member ? b.member.name : '',
+        b.member ? b.member.email : '',
+        b.status,
+        bookingDate,
+      ]);
+    }),
+  ];
+
+  const classTitle = session.class ? session.class.title : 'session';
+  const filename = `attendance-${sanitizeFilename(classTitle)}-${sessionDate}.csv`;
+
+  return {
+    csvContent: lines.join('\r\n'),
+    filename,
+  };
+}
+
 module.exports = {
   computeEndTime,
   validateInstructorAccount,
@@ -712,4 +777,6 @@ module.exports = {
   generateRecurringSchedule,
   toStaffSessionResponse,
   toInstructorSessionResponse,
+  exportSessionAttendanceCsv,
 };
+

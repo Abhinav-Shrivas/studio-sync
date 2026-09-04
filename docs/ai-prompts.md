@@ -373,3 +373,41 @@ I also deliberately did not add a `GET /member-alert-dismissals` endpoint. The f
 
 Goal 10 backend was fully implemented and verified with 7 focused integration tests covering dynamic alert calculation, staff-only RBAC, dismissal persistence, and atomic renewal reset in a database transaction.
 
+---
+
+## Session Attendance CSV Export
+
+### Prompt
+
+I need to implement Goal 7 of the assignment: exporting a session's attendance as a CSV file.
+
+The export should include the session information and every booking for that session, including the member and final booking status. Only studio staff and instructors assigned to that session (primary instructor or co-instructor) should be allowed to export it.
+
+Please review the existing architecture, authorization approach, schema, and assignment requirements before suggesting an implementation.
+
+I want the CSV generation to be robust and RFC 4180 compliant. In particular, think through edge cases where class titles, room names, instructor names, member names, emails, or other values contain commas, double quotes, or newlines. Every CSV cell, including session metadata, headers, and booking rows, should go through the same escaping/serialization logic.
+
+Also consider how co-instructors should be represented without creating a variable number of columns, and suggest a deterministic, safe filename for the downloaded CSV.
+
+### What I got
+
+The AI suggested implementing the export through a dedicated per-session endpoint and reusing the existing session authorization logic. It recommended restricting access to studio staff and instructors assigned to the session as either the primary instructor or a co-instructor.
+
+It also suggested generating the CSV dynamically from the session and its bookings and using a shared CSV serializer for all cells. The serializer would handle commas, double quotes, and embedded newlines according to RFC 4180.
+
+For co-instructors, it suggested joining their names into a single cell instead of creating a variable number of columns. It also recommended generating a deterministic filename using the class title and session date.
+
+### What I corrected
+
+I made the CSV serialization stricter by ensuring that **every cell** goes through the same `escapeCsvCell()` / `toCsvRow()` logic, including session metadata and column headers, rather than only escaping booking data.
+
+I also rejected approaches that allowed unassigned instructors or members to export attendance and reused the existing `getSessionById` authorization so export permissions remain consistent with session access.
+
+For co-instructors, I kept all names inside one joined cell and passed that cell through the CSV serializer. I also added a sanitized deterministic filename in the format:
+
+`attendance-{sanitized-class-title}-{session-date}.csv`
+
+I then tested the implementation, including CSV values containing commas, quotes, and newlines, as well as the authorization cases.
+
+### Result
+Implemented and tested the CSV export with RFC 4180 escaping, session-based authorization, co-instructor support, and deterministic filenames.
