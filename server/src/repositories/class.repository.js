@@ -60,6 +60,11 @@ async function getSessions(classId, { instructorId = null } = {}, options = {}) 
     where,
     include: [
       {
+        model: Class,
+        as: 'class',
+        attributes: ['id', 'title', 'discipline'],
+      },
+      {
         model: User,
         as: 'primaryInstructor',
         attributes: ['id', 'name', 'email'],

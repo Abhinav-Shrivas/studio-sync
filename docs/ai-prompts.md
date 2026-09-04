@@ -411,3 +411,95 @@ I then tested the implementation, including CSV values containing commas, quotes
 
 ### Result
 Implemented and tested the CSV export with RFC 4180 escaping, session-based authorization, co-instructor support, and deterministic filenames.
+
+
+## Instructor Class Discovery & "View My Sessions" — implementation planning
+
+### Prompt
+
+Implement the backend changes required to support an instructor-facing class discovery experience.
+
+The existing administrative `/classes/*` endpoints must remain STAFF-only. Add a separate read-only instructor API that allows instructors to see all active/non-archived classes in the studio.
+
+Add:
+
+* `GET /instructor/classes`
+* `GET /instructor/classes/:classId/sessions`
+
+`GET /instructor/classes` should return all active classes with a safe projection suitable for instructor class cards.
+
+`GET /instructor/classes/:classId/sessions` should return only sessions belonging to the selected class where the authenticated instructor is either the primary instructor or a co-instructor.
+
+The instructor identity must come from the authenticated user. Do not accept an instructor ID from the client. Session filtering must happen server-side/database-side rather than loading all sessions into Node.js and filtering in memory.
+
+Keep the existing `/classes/*` administrative routes STAFF-only and keep the existing instructor `/sessions` behavior unchanged.
+
+Inspect the existing architecture, authorization middleware, repositories, services, models, associations, and response serializers before making changes. Follow the existing project conventions and avoid unrelated refactoring.
+
+### What I got
+
+The proposed design separated instructor discovery from the administrative class API and introduced dedicated instructor routes. It also kept instructor session visibility scoped to primary/co-instructor assignments.
+
+### What I corrected
+
+I clarified that `/instructor/classes` should return **all active classes in the studio**, not only classes where the instructor has an assigned session.
+
+The instructor authorization boundary applies when retrieving sessions:
+
+`GET /instructor/classes/:classId/sessions`
+
+This endpoint returns only sessions where the authenticated instructor is the primary instructor or co-instructor.
+
+I also kept the existing `/classes/*` endpoints strictly STAFF-only rather than expanding their authorization.
+
+## Dashboard — role-scoped aggregation and attendance chart
+
+### Prompt
+
+Implement a protected dashboard API for Goal 8.
+
+Add:
+
+`GET /dashboard`
+
+The endpoint must require authentication and allow only STAFF and INSTRUCTOR roles.
+
+Return one response containing:
+
+* sessions today
+* bookings made today
+* no-shows this week
+* currently waitlisted
+* bookings by status
+* bookings by class
+* attendance per week for the last eight weeks
+
+Use PostgreSQL/database aggregation rather than loading raw bookings and sessions into Node.js and aggregating in memory.
+
+For attendance, count only bookings with status `ATTENDED`, grouped by the week of the session start time.
+
+Return exactly eight chronological weeks, including weeks with zero attendance. Use a PostgreSQL `generate_series` CTE and a LEFT JOIN so zero-attendance weeks are returned as `attended: 0`.
+
+### What I got
+
+The proposed dashboard used a single `/dashboard` endpoint and database-side aggregation. The attendance chart was generated as an eight-week PostgreSQL series so the frontend would always receive eight points.
+
+### What I corrected
+
+I clarified that STAFF and INSTRUCTOR must not receive identical dashboard data.
+
+STAFF receives studio-wide dashboard statistics.
+
+INSTRUCTOR receives dashboard statistics scoped exclusively to sessions where the authenticated instructor is the primary instructor or a co-instructor.
+
+This scope applies to every dashboard metric and breakdown, including:
+
+* sessions today
+* bookings today
+* no-shows this week
+* currently waitlisted
+* bookings by status
+* bookings by class
+* attendance by week
+
+I also explicitly required `currentlyWaitlisted` to use the same instructor session scope rather than accidentally returning the studio-wide waitlist count to instructors.

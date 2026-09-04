@@ -8,6 +8,8 @@ const sessionRoutes = require('./routes/session.routes');
 const bookingRoutes = require('./routes/booking.routes');
 const memberAlertRoutes = require('./routes/member-alert.routes');
 const memberRoutes = require('./routes/member.routes');
+const instructorRoutes = require('./routes/instructor.routes');
+const dashboardRoutes = require('./routes/dashboard.routes');
 const errorHandler = require('./middlewares/errorHandler');
 
 const app = express();
@@ -34,6 +36,9 @@ app.use('/sessions', sessionRoutes);
 app.use('/bookings', bookingRoutes);
 app.use('/membership-alerts', memberAlertRoutes);
 app.use('/members', memberRoutes);
+app.use('/instructor', instructorRoutes);
+app.use('/dashboard', dashboardRoutes);
+
 
 // ── Error handling ───────────────────────────────────────────────
 app.use(errorHandler);

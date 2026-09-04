@@ -65,5 +65,17 @@ The test suite prioritizes **behavior-driven coverage** over unit duplication, e
 * **Universal RFC 4180 Escaping:** Verifies that commas, double quotes, and embedded newlines across session metadata, instructor lists, and member records are properly escaped and preserved without corrupting the 2D CSV structure.
 * **Empty Session Handling:** Confirms exporting a session with zero bookings succeeds with HTTP 200, outputting all metadata rows, blank separator, and table column headers with exactly zero booking data rows.
 
+### 9. Instructor Class Discovery & "View My Sessions" (`instructor/instructor.test.js`)
+* **Active Class Discovery:** Confirms authenticated instructors can retrieve all active classes in the studio (`GET /instructor/classes`) with safe fields (`id`, `title`, `description`, `discipline`) while excluding archived classes and administrative fields (`is_archived`, `default_capacity`, `default_duration`, timestamps).
+* **View My Sessions:** Proves querying `GET /instructor/classes/:classId/sessions` returns only sessions for the designated class where the instructor is primary or co-instructor, projected with instructor-safe fields.
+* **Session Isolation & Resource Visibility:** Validates that instructors cannot see other instructors' sessions; requesting an active class with no assigned sessions returns an empty array `[]`; nonexistent and archived classes return `404 Not Found`.
+* **Administrative Route Protection:** Proves instructors cannot create, edit, archive, or list classes via `/classes/*` endpoints (`403 Forbidden`).
+
+### 10. Protected Dashboard API (`dashboard/dashboard.test.js`)
+* **Protection & Explicit Scoping:** Confirms `GET /dashboard` rejects unauthenticated callers with `401 Unauthorized` and unauthorized roles (e.g. `MEMBER`) with `403 Forbidden`. Proves `STAFF` receives studio-wide counts while `INSTRUCTOR` receives strictly assigned-session-scoped counts.
+* **Aggregate Accuracy:** Validates headline summary counts (`sessionsToday`, `bookingsToday`, `noShowsThisWeek`, `currentlyWaitlisted`), `bookingsByStatus` across all 5 statuses (`BOOKED`, `WAITLISTED`, `CANCELLED`, `ATTENDED`, `NO_SHOW`), and `bookingsByClass` against database ground truth.
+* **Eight-Week Attendance Trend:** Verifies the PostgreSQL CTE generates exactly 8 chronological weeks (current week + 7 prior weeks) with zero-attendance weeks included as `attended: 0`, counting only `ATTENDED` bookings grouped by session week, and strictly scoped by instructor assignment when called by an instructor.
+
+
 
 
