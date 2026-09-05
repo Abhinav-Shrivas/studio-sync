@@ -1,19 +1,16 @@
 import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Sparkles, Shield, User, LogIn, AlertCircle, Mail, Lock } from 'lucide-react';
+import { Sparkles, Shield, User, LogIn, AlertCircle, Mail, Lock, Info } from 'lucide-react';
 
 export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-
-  const from = location.state?.from?.pathname || '/dashboard';
 
   const handleSubmit = async (e) => {
     e?.preventDefault();
@@ -26,7 +23,7 @@ export function LoginPage() {
       setLoading(true);
       setError(null);
       await login(email, password);
-      navigate(from, { replace: true });
+      navigate('/dashboard', { replace: true });
     } catch (err) {
       setError(err.message || 'Login failed. Please verify credentials.');
     } finally {
@@ -87,6 +84,27 @@ export function LoginPage() {
           <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>
             Class Booking & Studio Management System
           </p>
+        </div>
+
+        <div
+          style={{
+            padding: '10px 14px',
+            backgroundColor: 'rgba(99, 102, 241, 0.08)',
+            border: '1px solid rgba(99, 102, 241, 0.22)',
+            borderRadius: 'var(--radius-sm)',
+            color: 'var(--text-secondary)',
+            fontSize: '0.8rem',
+            lineHeight: '1.45',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '8px',
+          }}
+        >
+          <Info size={16} style={{ color: '#818CF8', flexShrink: 0, marginTop: '2px' }} />
+          <span>
+            <strong style={{ color: 'var(--text-primary)' }}>Note:</strong> The backend is hosted on a free tier that sleeps when inactive. The initial request or sign-in may take up to a minute to respond while the server wakes up.
+          </span>
         </div>
 
         {error && (

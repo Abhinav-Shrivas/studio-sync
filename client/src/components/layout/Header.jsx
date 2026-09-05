@@ -65,28 +65,6 @@ export function Header() {
           </NavLink>
         )}
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div
-            style={{
-              width: '8px',
-              height: '8px',
-              borderRadius: '50%',
-              backgroundColor: 'var(--success)',
-              boxShadow: '0 0 6px rgba(16, 185, 129, 0.6)',
-            }}
-          />
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            System Live
-          </span>
-        </div>
-
-        <div
-          style={{
-            height: '24px',
-            width: '1px',
-            backgroundColor: 'var(--border)',
-          }}
-        />
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div
