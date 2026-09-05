@@ -3,6 +3,8 @@
  * Automatically injects the JWT token from localStorage and parses response data and errors.
  */
 
+const API_BASE = import.meta.env.VITE_API_URL || '';
+
 export async function request(endpoint, options = {}) {
   const token = localStorage.getItem('token');
   const headers = {
@@ -20,7 +22,7 @@ export async function request(endpoint, options = {}) {
     config.body = JSON.stringify(config.body);
   }
 
-  const response = await fetch(endpoint, config);
+  const response = await fetch(`${API_BASE}${endpoint}`, config);
 
   if (!response.ok) {
     let errorMessage = `Request failed with status ${response.status}`;
@@ -62,7 +64,7 @@ export async function downloadFile(endpoint, defaultFilename = 'download.csv') {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 
-  const response = await fetch(endpoint, { headers });
+  const response = await fetch(`${API_BASE}${endpoint}`, { headers });
   if (!response.ok) {
     let msg = 'Failed to download file';
     try {

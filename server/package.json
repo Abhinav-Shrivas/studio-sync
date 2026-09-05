@@ -20,6 +20,7 @@
   "license": "ISC",
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
@@ -34,7 +35,11 @@
   },
   "jest": {
     "testEnvironment": "node",
-    "roots": ["<rootDir>/src/tests"],
-    "setupFiles": ["<rootDir>/src/tests/setup.js"]
+    "roots": [
+      "<rootDir>/src/tests"
+    ],
+    "setupFiles": [
+      "<rootDir>/src/tests/setup.js"
+    ]
   }
 }

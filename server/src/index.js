@@ -1,6 +1,7 @@
 require('dotenv').config();
 
 const express = require('express');
+const cors = require('cors');
 const { sequelize } = require('./models');
 const authRoutes = require('./routes/auth.routes');
 const classRoutes = require('./routes/class.routes');
@@ -16,6 +17,10 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ── Core middleware ──────────────────────────────────────────────
+app.use(cors({
+  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  credentials: true,
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
