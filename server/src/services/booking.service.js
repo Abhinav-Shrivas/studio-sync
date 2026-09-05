@@ -45,6 +45,13 @@ async function createBooking(data, user) {
       throw new NotFoundError('Session not found');
     }
 
+    // Disallow creating bookings for sessions that have already started or completed
+    if (new Date() >= new Date(session.start_time)) {
+      throw new ValidationError(
+        'Cannot create a booking for a session that has already started or completed.'
+      );
+    }
+
     // Check duplicate active booking: prevent more than one active booking (BOOKED or WAITLISTED)
     const existingActiveBooking = await bookingRepository.findActiveBooking(memberId, sessionId, {
       transaction: t,
@@ -106,6 +113,17 @@ async function cancelBooking(bookingId, user) {
       transaction: t,
       lock: t.LOCK.UPDATE,
     });
+
+    if (!session) {
+      throw new NotFoundError('Associated session not found');
+    }
+
+    // Disallow cancelling bookings once the session scheduled start time has passed
+    if (new Date() >= new Date(session.start_time)) {
+      throw new ValidationError(
+        'Cannot cancel a booking for a session that has already started or passed. Please settle attendance instead.'
+      );
+    }
 
     const oldStatus = booking.status;
     await booking.update({ status: 'CANCELLED' }, { transaction: t });

@@ -156,6 +156,12 @@ With the backend API contract verified, the frontend could be built confidently 
 #### What I did
 - Manually tested all major flows as an actual user (auth, classes, sessions, members, bookings, waitlist, co-instructors, recurring sessions, dashboard, history, alerts, attendance, CSV export).
 - Fixed frontend-specific issues (UI behaviour, state handling, and integration issues) and addressed backend API gaps (e.g., added missing member retrieval and creation APIs needed by the frontend workflow).
+- **Backend checks & rules:** Added strict session boundary checks preventing new bookings or cancellations on ongoing and past/completed sessions, backed by automated integration tests.
+- **Frontend bug fixes & feedback:**
+  - Fixed action dialogs prematurely closing on API errors, keeping dialogs open with in-modal error banners.
+  - Added visual confirmation notices across class actions, session scheduling/editing/deletion, and co-instructor management.
+  - Fixed full-page unmount and timing errors during co-instructor removal using confirmation dialogs and silent in-place data updates.
+  - Aligned UI controls with backend rules by filtering booking dropdowns to upcoming sessions and displaying "Not started yet" placeholders in session attendance sheets.
 - Re-tested affected flows after each fix to prevent regressions.
 
 #### Why this came next

@@ -26,6 +26,8 @@ import {
   UserCheck,
   AlertCircle,
   Check,
+  CheckCircle2,
+  X,
 } from 'lucide-react';
 
 const ACTIVE_INSTRUCTORS = [
@@ -80,6 +82,8 @@ export function SessionsPage() {
 
   // Delete Confirm
   const [sessionToDelete, setSessionToDelete] = useState(null);
+  const [deleteError, setDeleteError] = useState(null);
+  const [successNotice, setSuccessNotice] = useState(null);
 
   const fetchSessions = async () => {
     try {
@@ -148,6 +152,7 @@ export function SessionsPage() {
         capacity: 15,
         co_instructor_ids: [],
       });
+      setSuccessNotice('Session scheduled successfully.');
       fetchSessions();
     } catch (err) {
       setFormError(err.message || 'Failed to create session.');
@@ -201,8 +206,10 @@ export function SessionsPage() {
         co_instructor_ids: editForm.co_instructor_ids.map(Number),
       });
 
+      const updatedId = editingSession.id;
       setIsEditModalOpen(false);
       setEditingSession(null);
+      setSuccessNotice(`Session #${updatedId} details updated successfully.`);
       fetchSessions();
     } catch (err) {
       setEditError(err.message || 'Failed to update session.');
@@ -215,10 +222,15 @@ export function SessionsPage() {
     if (!sessionToDelete) return;
     try {
       setSubmitting(true);
+      setDeleteError(null);
+      const deletedId = sessionToDelete.id;
+      const classTitle = sessionToDelete.class?.title || 'Class';
       await sessionApi.deleteSession(sessionToDelete.id);
       setSessionToDelete(null);
+      setSuccessNotice(`Session #${deletedId} (${classTitle}) was successfully deleted.`);
       fetchSessions();
     } catch (err) {
+      setDeleteError(err.message || 'Failed to delete session.');
       alert(err.message || 'Failed to delete session.');
     } finally {
       setSubmitting(false);
@@ -252,6 +264,42 @@ export function SessionsPage() {
           </div>
         )}
       </div>
+
+      {/* Success Notification Banner */}
+      {successNotice && (
+        <div
+          style={{
+            padding: '14px 18px',
+            backgroundColor: 'rgba(16, 185, 129, 0.15)',
+            border: '1px solid var(--success)',
+            borderRadius: 'var(--radius-md)',
+            color: '#34D399',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '10px',
+            fontSize: '0.9rem',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <CheckCircle2 size={18} style={{ flexShrink: 0 }} />
+            <span>{successNotice}</span>
+          </div>
+          <button
+            onClick={() => setSuccessNotice(null)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#34D399',
+              cursor: 'pointer',
+              padding: '2px',
+              display: 'flex',
+            }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       {/* Filter toolbar */}
       <div className="filter-bar" style={{ flexWrap: 'wrap' }}>
@@ -855,12 +903,17 @@ export function SessionsPage() {
       {/* Delete Confirmation */}
       <ConfirmDialog
         isOpen={Boolean(sessionToDelete)}
-        onClose={() => setSessionToDelete(null)}
+        onClose={() => {
+          setSessionToDelete(null);
+          setDeleteError(null);
+        }}
         onConfirm={handleDeleteSession}
         title="Delete Session"
-        message={`Are you sure you want to delete session #${sessionToDelete?.id}? This action cannot be undone.`}
-        confirmLabel="Delete Session"
+        message={`Are you sure you want to delete session #${sessionToDelete?.id} (${sessionToDelete?.class?.title || 'Class'})? This action cannot be undone.`}
+        confirmLabel={submitting ? 'Deleting...' : 'Delete Session'}
         confirmVariant="danger"
+        loading={submitting}
+        error={deleteError}
       />
     </div>
   );

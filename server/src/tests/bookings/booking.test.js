@@ -179,6 +179,32 @@ describe('Booking & Booking Timeline Features', () => {
       expect(res.body.message).toMatch(/expired/i);
     });
 
+    it('should reject creating a booking if the session has already started or completed', async () => {
+      const pastSession = await Session.create({
+        class_id: testClass.id,
+        room: 'Studio Past Book Check',
+        start_time: new Date(Date.now() - 3600000), // 1 hour ago
+        duration: 60,
+        capacity: 5,
+        primary_instructor_id: 2,
+      });
+
+      const member = await Member.create({
+        name: 'Past Booking Member',
+        email: `past_book_${Date.now()}@test.com`,
+        membership_expiry: '2029-01-01',
+      });
+
+      const res = await request(app)
+        .post('/bookings')
+        .set('Authorization', `Bearer ${staffToken}`)
+        .send({ member_id: member.id, session_id: pastSession.id });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.message).toMatch(/already started or completed/i);
+    });
+
     it('should prevent duplicate active booking for the same member and session when BOOKED or WAITLISTED with 409 Conflict', async () => {
       const session = await Session.create({
         class_id: testClass.id,
@@ -379,6 +405,37 @@ describe('Booking & Booking Timeline Features', () => {
       expect(cancelRes.body.data.booking.status).toBe('CANCELLED');
       expect(cancelRes.body.data.promotedBooking).toBeNull();
     });
+
+    it('should reject cancelling a booking if the session scheduled start time has already passed', async () => {
+      const pastSession = await Session.create({
+        class_id: testClass.id,
+        room: 'Studio Past Cancel Check',
+        start_time: new Date(Date.now() - 3600000), // 1 hour ago
+        duration: 60,
+        capacity: 5,
+        primary_instructor_id: 2,
+      });
+
+      const member = await Member.create({
+        name: 'Past Booking Member',
+        email: `past_cancel_${Date.now()}@test.com`,
+        membership_expiry: '2029-01-01',
+      });
+
+      const b = await Booking.create({
+        member_id: member.id,
+        session_id: pastSession.id,
+        status: 'BOOKED',
+      });
+
+      const cancelRes = await request(app)
+        .post(`/bookings/${b.id}/cancel`)
+        .set('Authorization', `Bearer ${staffToken}`);
+
+      expect(cancelRes.status).toBe(400);
+      expect(cancelRes.body.success).toBe(false);
+      expect(cancelRes.body.message).toMatch(/already started or passed/i);
+    });
   });
 
   // ──────────────────────────────────────────────────────────────
@@ -402,12 +459,19 @@ describe('Booking & Booking Timeline Features', () => {
         membership_expiry: '2029-01-01',
       });
 
-      const bookRes = await request(app)
-        .post('/bookings')
-        .set('Authorization', `Bearer ${staffToken}`)
-        .send({ member_id: member.id, session_id: pastSession.id });
-
-      const bookingId = bookRes.body.data.id;
+      const booking = await Booking.create({
+        member_id: member.id,
+        session_id: pastSession.id,
+        status: 'BOOKED',
+      });
+      await BookingTimeline.create({
+        booking_id: booking.id,
+        from_status: null,
+        to_status: 'BOOKED',
+        actor_id: 1,
+        change_source: 'USER',
+      });
+      const bookingId = booking.id;
 
       // 1. Unassigned instructor (Raj, ID: 3) attempts settlement -> 403 Forbidden
       const unassignedRes = await request(app)

@@ -19,7 +19,7 @@
   - **Attendance CSV Export (Goal 7):** Available on any Session detail page (e.g., Session #5) via the **"Export CSV"** button.
   - **Booking History & Audit Log (Goal 9):** Clicking any booking row or attendee displays an immutable timeline tracking all lifecycle events, actors, and staff notes.
   - **Recurring Schedule Generation (Goal 7):** Available from the Sessions page with automatic room & instructor collision detection.
-- **Automated test suite:** A comprehensive integration and unit test suite covers all 10 core goals with **10 test suites and 67 passing tests** (detailed breakdown and documentation can be found in [TEST.md](./TEST.md)). You can run them locally via:
+- **Automated test suite:** A comprehensive integration and unit test suite covers all 10 core goals with **10 test suites and 69 passing tests** (detailed breakdown and documentation can be found in [TEST.md](./TEST.md)). You can run them locally via:
   ```bash
   cd server && npm test
   ```
@@ -43,7 +43,7 @@ If you prefer running and testing the application locally:
 ```bash
 cd server
 npm install
-npm test            # Runs all 10 test suites (67 passing tests)
+npm test            # Runs all 10 test suites (69 passing tests)
 npm run dev         # Starts API on http://localhost:5000
 ```
 
@@ -95,8 +95,8 @@ Approximately 16–18 hours in total, split across:
 
 With another 12 hours, I would focus mainly on improving robustness, code quality, and extending the system beyond the required staff/instructor workflows:
 
-1. **Fix and tighten booking edge cases:**
-   I would review the booking rules around sessions that are already in progress. Currently, I have deliberately allowed a member to make a new booking while a class is ongoing. That was a conscious product decision rather than an oversight, but I would revisit this behaviour and make the rule explicit and consistent across all booking paths. I would also test the booking state transitions more thoroughly for edge cases.
+1. **Improve frontend UI/UX and responsiveness:**
+   I would focus on elevating the user experience by making the interface fully responsive across mobile and tablet viewports, improving table scrolling, adding smoother state transitions and micro-interactions, and refining accessibility and keyboard navigation across all modals and forms.
 
 2. **Optimize the backend:**
    I would review the backend for unnecessary database queries, repeated operations, and functions that can be simplified or optimized. In particular, I would look at the heavier booking, dashboard, search, and session-related queries and make sure they are efficient as the amount of data grows.

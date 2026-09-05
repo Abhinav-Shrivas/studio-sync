@@ -16,7 +16,7 @@ A comprehensive class scheduling, booking management, and attendance tracking pl
 Everything has been thoroughly documented across dedicated files:
 
 - 📄 **[SUBMISSION.md](./SUBMISSION.md)** — Links, Reviewer notes, demo shortcuts, 10-goal completion checklist, stack breakdown, and retrospective.
-- 🧪 **[TEST.md](./TEST.md)** — Automated test suite breakdown (10 test suites, 67 tests passing covering all core business rules).
+- 🧪 **[TEST.md](./TEST.md)** — Automated test suite breakdown (10 test suites, 69 tests passing covering all core business rules).
 - 📋 **[ASSIGNMENT.md](./ASSIGNMENT.md)** — Original take-home assignment specification and prompt.
 - 📐 **[docs/architecture.md](./docs/architecture.md)** — System architecture, layering, component interactions, and data flow.
 - 💡 **[docs/decisions.md](./docs/decisions.md)** — Key technical decisions, trade-offs, and rationale.
@@ -41,7 +41,7 @@ Everything has been thoroughly documented across dedicated files:
 ```bash
 cd server
 npm install
-npm test            # Run all 10 integration test suites (67 passing tests)
+npm test            # Run all 10 integration test suites (69 passing tests)
 npm run dev         # Starts backend API on http://localhost:5000
 ```
 

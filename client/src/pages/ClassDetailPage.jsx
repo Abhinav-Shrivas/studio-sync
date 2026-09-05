@@ -19,6 +19,8 @@ import {
   UserCheck,
   AlertCircle,
   Check,
+  CheckCircle2,
+  X,
 } from 'lucide-react';
 
 const ACTIVE_INSTRUCTORS = [
@@ -47,6 +49,7 @@ export function ClassDetailPage() {
   });
   const [sessionError, setSessionError] = useState(null);
   const [submittingSession, setSubmittingSession] = useState(false);
+  const [successNotice, setSuccessNotice] = useState(null);
 
   const fetchDetails = async () => {
     try {
@@ -105,6 +108,7 @@ export function ClassDetailPage() {
         capacity: cls?.default_capacity || cls?.defaultCapacity || 15,
         co_instructor_ids: [],
       });
+      setSuccessNotice('Session scheduled successfully.');
       fetchDetails();
     } catch (err) {
       setSessionError(err.message || 'Failed to schedule session.');
@@ -177,6 +181,42 @@ export function ClassDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Success Notification Banner */}
+      {successNotice && (
+        <div
+          style={{
+            padding: '14px 18px',
+            backgroundColor: 'rgba(16, 185, 129, 0.15)',
+            border: '1px solid var(--success)',
+            borderRadius: 'var(--radius-md)',
+            color: '#34D399',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '10px',
+            fontSize: '0.9rem',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <CheckCircle2 size={18} style={{ flexShrink: 0 }} />
+            <span>{successNotice}</span>
+          </div>
+          <button
+            onClick={() => setSuccessNotice(null)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#34D399',
+              cursor: 'pointer',
+              padding: '2px',
+              display: 'flex',
+            }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       {/* Class Meta Grid */}
       <div className="grid-cols-4">

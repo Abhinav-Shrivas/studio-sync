@@ -17,7 +17,7 @@ npm test
 
 ### Current Test Suite Status
 - **Test Suites:** 10 passed, 10 total
-- **Tests:** 67 passed, 67 total
+- **Tests:** 69 passed, 69 total
 - **Snapshots:** 0 total
 
 ---
@@ -54,6 +54,7 @@ npm test
 * **Capacity & Waitlist Creation:** Proves creating bookings with available capacity creates `BOOKED`, and full capacity automatically creates `WAITLISTED`, each with an atomic initial timeline entry.
 * **Membership Expiry Guard:** Verifies expired members cannot create new bookings (`400 Bad Request`).
 * **Duplicate Active Prevention & Rebooking:** Confirms duplicate active bookings (`BOOKED` or `WAITLISTED`) for the same member and session are rejected (`409 Conflict`), while allowing rebooking after cancellation by generating a new booking row with its own fresh timeline.
+* **Past & Ongoing Session Guard:** Strictly rejects creating or cancelling bookings for sessions that have already started or completed (`400 Bad Request`).
 * **Atomic Waitlist Promotion:** Proves cancelling a `BOOKED` slot promotes the earliest waitlisted booking (`ORDER BY created_at ASC, id ASC`) with `SYSTEM` source, while cancelling a `WAITLISTED` booking promotes no one.
 * **Attendance Settlement:** Validates settling attendance (`ATTENDED`/`NO_SHOW`) only after session start time and verifies instructors can settle only their assigned sessions with an automatic note.
 * **Timeline Integrity & Staff Notes:** Confirms staff can append notes without modifying booking status, while keeping history immutable and hidden from instructors (`403 Forbidden`).

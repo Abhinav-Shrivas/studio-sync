@@ -465,9 +465,9 @@ export function BookingsPage() {
               </thead>
               <tbody>
                 {bookings.map((b) => {
-                  const canCancel = isStaff && (b.status === 'BOOKED' || b.status === 'WAITLISTED');
-
                   const sessionStart = new Date(b.session?.start_time || b.session?.startTime);
+                  const isPastSession = Boolean(b.session?.start_time || b.session?.startTime) && new Date() >= sessionStart;
+                  const canCancel = isStaff && (b.status === 'BOOKED' || b.status === 'WAITLISTED') && !isPastSession;
                   const sessionDateStr = formatLocalDate(b.session?.start_time || b.session?.startTime);
                   const sessionTimeStr = formatDisplayTime(b.session?.start_time || b.session?.startTime);
                   const bookingCreated = b.created_at || b.createdAt;
@@ -626,6 +626,7 @@ export function BookingsPage() {
         message={`Are you sure you want to cancel booking #${bookingToCancel?.id} for ${bookingToCancel?.member?.name || 'this member'}? If other members are on the waitlist, the first member in queue will be automatically promoted.`}
         confirmLabel={cancelling ? 'Cancelling...' : 'Confirm Cancellation'}
         confirmVariant="danger"
+        loading={cancelling}
       />
 
       {/* Timeline & Notes Modal */}
@@ -784,12 +785,18 @@ export function BookingsPage() {
                 onChange={(e) => setCreateForm({ ...createForm, session_id: e.target.value })}
                 required
               >
-                <option value="">Select a session...</option>
-                {activeSessions.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    #{s.id} - {s.class?.title || 'Class'} ({s.date} {s.startTime})
-                  </option>
-                ))}
+                <option value="">Select an upcoming session...</option>
+                {activeSessions
+                  .filter((s) => new Date() < new Date(s.start_time || s.startTime))
+                  .map((s) => {
+                    const dateStr = formatLocalDate(s.start_time || s.startTime);
+                    const timeStr = formatDisplayTime(s.start_time || s.startTime);
+                    return (
+                      <option key={s.id} value={s.id}>
+                        #{s.id} - {s.class?.title || 'Class'} ({dateStr} {timeStr})
+                      </option>
+                    );
+                  })}
               </select>
             </div>
 

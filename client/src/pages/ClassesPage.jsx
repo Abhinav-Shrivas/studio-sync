@@ -17,6 +17,8 @@ import {
   Clock,
   Users,
   AlertCircle,
+  CheckCircle2,
+  X,
 } from 'lucide-react';
 
 export function ClassesPage() {
@@ -42,6 +44,8 @@ export function ClassesPage() {
 
   // Archive / Restore Confirm
   const [confirmAction, setConfirmAction] = useState(null); // { type: 'archive' | 'restore', cls: object }
+  const [confirmError, setConfirmError] = useState(null);
+  const [successNotice, setSuccessNotice] = useState(null);
 
   const fetchClasses = async () => {
     try {
@@ -106,8 +110,10 @@ export function ClassesPage() {
 
       if (editingClass) {
         await classApi.updateClass(editingClass.id, payload);
+        setSuccessNotice(`Class "${payload.title}" was successfully updated.`);
       } else {
         await classApi.createClass(payload);
+        setSuccessNotice(`Class "${payload.title}" was successfully created.`);
       }
       setIsFormModalOpen(false);
       fetchClasses();
@@ -122,14 +128,19 @@ export function ClassesPage() {
     if (!confirmAction) return;
     try {
       setSubmitting(true);
+      setConfirmError(null);
+      const targetTitle = confirmAction.cls?.title || 'Class';
       if (confirmAction.type === 'archive') {
         await classApi.archiveClass(confirmAction.cls.id);
+        setSuccessNotice(`Class "${targetTitle}" was successfully archived.`);
       } else {
         await classApi.restoreClass(confirmAction.cls.id);
+        setSuccessNotice(`Class "${targetTitle}" was successfully restored.`);
       }
       setConfirmAction(null);
       fetchClasses();
     } catch (err) {
+      setConfirmError(err.message || `Failed to ${confirmAction.type} class.`);
       alert(err.message || `Failed to ${confirmAction.type} class.`);
     } finally {
       setSubmitting(false);
@@ -156,6 +167,42 @@ export function ClassesPage() {
           <span>New Class</span>
         </button>
       </div>
+
+      {/* Success Notification Banner */}
+      {successNotice && (
+        <div
+          style={{
+            padding: '14px 18px',
+            backgroundColor: 'rgba(16, 185, 129, 0.15)',
+            border: '1px solid var(--success)',
+            borderRadius: 'var(--radius-md)',
+            color: '#34D399',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '10px',
+            fontSize: '0.9rem',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <CheckCircle2 size={18} style={{ flexShrink: 0 }} />
+            <span>{successNotice}</span>
+          </div>
+          <button
+            onClick={() => setSuccessNotice(null)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#34D399',
+              cursor: 'pointer',
+              padding: '2px',
+              display: 'flex',
+            }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       {/* Filter toolbar */}
       <div className="filter-bar">
@@ -436,7 +483,10 @@ export function ClassesPage() {
       {/* Confirm Archive / Restore */}
       <ConfirmDialog
         isOpen={Boolean(confirmAction)}
-        onClose={() => setConfirmAction(null)}
+        onClose={() => {
+          setConfirmAction(null);
+          setConfirmError(null);
+        }}
         onConfirm={handleConfirmAction}
         title={confirmAction?.type === 'archive' ? 'Archive Class' : 'Restore Class'}
         message={
@@ -444,8 +494,18 @@ export function ClassesPage() {
             ? `Are you sure you want to archive "${confirmAction?.cls?.title}"? Existing scheduled sessions will remain, but new sessions cannot be scheduled from an archived class.`
             : `Are you sure you want to restore "${confirmAction?.cls?.title}"? The class will become active and available for session scheduling.`
         }
-        confirmLabel={confirmAction?.type === 'archive' ? 'Archive' : 'Restore'}
+        confirmLabel={
+          submitting
+            ? confirmAction?.type === 'archive'
+              ? 'Archiving...'
+              : 'Restoring...'
+            : confirmAction?.type === 'archive'
+            ? 'Archive'
+            : 'Restore'
+        }
         confirmVariant={confirmAction?.type === 'archive' ? 'danger' : 'primary'}
+        loading={submitting}
+        error={confirmError}
       />
     </div>
   );

@@ -249,9 +249,13 @@ export function MembersPage() {
       setLoadingSessions(true);
       const res = await sessionApi.getSessions();
       const sessions = Array.isArray(res) ? res : res?.data || [];
+      // Filter to upcoming sessions only (session start must be in the future)
+      const upcomingSessions = sessions.filter(
+        (s) => new Date() < new Date(s.start_time || s.startTime)
+      );
       // Sort upcoming sessions chronologically
-      sessions.sort((a, b) => new Date(a.start_time || a.startTime) - new Date(b.start_time || b.startTime));
-      setAvailableSessions(sessions);
+      upcomingSessions.sort((a, b) => new Date(a.start_time || a.startTime) - new Date(b.start_time || b.startTime));
+      setAvailableSessions(upcomingSessions);
     } catch (err) {
       setBookingModalError('Failed to retrieve active sessions: ' + (err.message || 'Unknown error'));
     } finally {

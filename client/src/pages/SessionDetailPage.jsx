@@ -24,6 +24,7 @@ import {
   AlertCircle,
   MessageSquare,
   Ban,
+  X,
 } from 'lucide-react';
 import { formatLocalDate, formatDisplayTime } from '../utils/date';
 
@@ -53,10 +54,15 @@ export function SessionDetailPage() {
   const [cancelling, setCancelling] = useState(false);
   const [promotionNotice, setPromotionNotice] = useState(null);
 
+  // Remove Co-Instructor Modal (Staff Only)
+  const [coToRemove, setCoToRemove] = useState(null);
+  const [removingCo, setRemovingCo] = useState(false);
+
   const handleConfirmCancel = async () => {
     if (!bookingToCancel) return;
     try {
       setCancelling(true);
+      setActionError(null);
       setPromotionNotice(null);
       const res = await bookingApi.cancelBooking(bookingToCancel.id);
       if (res?.promotedBooking) {
@@ -67,7 +73,7 @@ export function SessionDetailPage() {
         setPromotionNotice('Booking successfully cancelled.');
       }
       setBookingToCancel(null);
-      fetchSession();
+      fetchSession(false);
     } catch (err) {
       setActionError(err.message || 'Failed to cancel booking.');
     } finally {
@@ -75,9 +81,9 @@ export function SessionDetailPage() {
     }
   };
 
-  const fetchSession = async () => {
+  const fetchSession = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       setError(null);
       const [sessionData, bookingsData] = await Promise.all([
         sessionApi.getSessionById(id),
@@ -93,12 +99,12 @@ export function SessionDetailPage() {
     } catch (err) {
       setError(err.message || 'Failed to load session roster.');
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchSession();
+    fetchSession(true);
   }, [id]);
 
   const handleExportCsv = async () => {
@@ -131,8 +137,10 @@ export function SessionDetailPage() {
         settleModal.status,
         isStaff && settleNote.trim() ? settleNote.trim() : undefined
       );
+      const memberName = settleModal.booking?.member?.name || `Member #${settleModal.booking?.memberId || settleModal.booking?.member_id}`;
+      setPromotionNotice(`Attendance successfully recorded as ${settleModal.status} for ${memberName}.`);
       setSettleModal(null);
-      fetchSession();
+      fetchSession(false);
     } catch (err) {
       setActionError(err.message || `Failed to mark attendance as ${settleModal.status}.`);
     } finally {
@@ -147,7 +155,8 @@ export function SessionDetailPage() {
       setActionError(null);
       await sessionApi.addCoInstructor(id, Number(selectedInstructorId));
       setIsCoModalOpen(false);
-      fetchSession();
+      setPromotionNotice('Co-instructor successfully assigned to session.');
+      fetchSession(false);
     } catch (err) {
       setActionError(err.message || 'Failed to assign co-instructor.');
     } finally {
@@ -155,13 +164,21 @@ export function SessionDetailPage() {
     }
   };
 
-  const handleRemoveCoInstructor = async (instructorId) => {
+  const handleConfirmRemoveCo = async () => {
+    if (!coToRemove) return;
     try {
+      setRemovingCo(true);
       setActionError(null);
-      await sessionApi.removeCoInstructor(id, instructorId);
-      fetchSession();
+      await sessionApi.removeCoInstructor(id, coToRemove.id);
+      setPromotionNotice(
+        `Co-instructor "${coToRemove.name}" was successfully removed from this session.`
+      );
+      setCoToRemove(null);
+      fetchSession(false);
     } catch (err) {
       setActionError(err.message || 'Failed to remove co-instructor.');
+    } finally {
+      setRemovingCo(false);
     }
   };
 
@@ -194,11 +211,12 @@ export function SessionDetailPage() {
   const now = new Date();
   const endTime = new Date(sessionStart.getTime() + durationMin * 60000);
   const sessionStatus = now < sessionStart ? 'SCHEDULED' : now <= endTime ? 'IN_PROGRESS' : 'COMPLETED';
+  const isPast = now >= sessionStart;
 
   // Authorization check
   const isPrimary = session.primary_instructor_id === user?.id || session.primaryInstructor?.id === user?.id;
   const isCo = coInstructors.some((c) => c.instructorId === user?.id || c.id === user?.id);
-  const canSettle = isStaff || isPrimary || isCo;
+  const canSettle = (isStaff || isPrimary || isCo) && isPast;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -258,16 +276,32 @@ export function SessionDetailPage() {
             color: '#34D399',
             display: 'flex',
             alignItems: 'center',
+            justifyContent: 'space-between',
             gap: '10px',
             fontSize: '0.9rem',
           }}
         >
-          <CheckCircle2 size={18} style={{ flexShrink: 0 }} />
-          <span>{promotionNotice}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <CheckCircle2 size={18} style={{ flexShrink: 0 }} />
+            <span>{promotionNotice}</span>
+          </div>
+          <button
+            onClick={() => setPromotionNotice(null)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#34D399',
+              cursor: 'pointer',
+              padding: '2px',
+              display: 'flex',
+            }}
+          >
+            <X size={16} />
+          </button>
         </div>
       )}
 
-      {actionError && (
+      {actionError && !settleModal && !bookingToCancel && !isCoModalOpen && (
         <div
           style={{
             padding: '12px 16px',
@@ -277,11 +311,27 @@ export function SessionDetailPage() {
             color: '#FCA5A5',
             display: 'flex',
             alignItems: 'center',
+            justifyContent: 'space-between',
             gap: '8px',
           }}
         >
-          <AlertCircle size={16} style={{ flexShrink: 0 }} />
-          <span>{actionError}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <AlertCircle size={16} style={{ flexShrink: 0 }} />
+            <span>{actionError}</span>
+          </div>
+          <button
+            onClick={() => setActionError(null)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#FCA5A5',
+              cursor: 'pointer',
+              padding: '2px',
+              display: 'flex',
+            }}
+          >
+            <X size={16} />
+          </button>
         </div>
       )}
 
@@ -335,30 +385,54 @@ export function SessionDetailPage() {
                 Assigned Co-Instructors
               </div>
               <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
-                {coInstructors.map((co) => (
-                  <span
-                    key={co.id || co.instructorId}
-                    style={{
-                      fontSize: '0.8rem',
-                      backgroundColor: 'var(--bg-elevated)',
-                      padding: '3px 10px',
-                      borderRadius: 'var(--radius-full)',
-                      border: '1px solid var(--border)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                    }}
-                  >
-                    <span>{co.name || co.user?.name || `Instructor #${co.instructorId || co.id}`}</span>
-                    {isStaff && (
-                      <Trash2
-                        size={13}
-                        style={{ cursor: 'pointer', color: 'var(--danger)' }}
-                        onClick={() => handleRemoveCoInstructor(co.instructorId || co.id)}
-                      />
-                    )}
-                  </span>
-                ))}
+                {coInstructors.map((co) => {
+                  const coName = co.name || co.user?.name || `Instructor #${co.instructorId || co.id}`;
+                  const coId = co.instructorId || co.id;
+
+                  return (
+                    <span
+                      key={co.id || co.instructorId}
+                      style={{
+                        fontSize: '0.8rem',
+                        backgroundColor: 'var(--bg-elevated)',
+                        padding: '3px 10px',
+                        borderRadius: 'var(--radius-full)',
+                        border: '1px solid var(--border)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                      }}
+                    >
+                      <span>{coName}</span>
+                      {isStaff && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setActionError(null);
+                            setCoToRemove({ id: coId, name: coName });
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--danger)',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '2px',
+                            borderRadius: '4px',
+                          }}
+                          title={`Remove ${coName}`}
+                          aria-label={`Remove ${coName}`}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </span>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -438,16 +512,36 @@ export function SessionDetailPage() {
                               </button>
                             </>
                           )}
-                          {isStaff && isBooked && (
-                            <button
-                              onClick={() => setBookingToCancel(b)}
-                              className="btn btn-secondary btn-sm"
-                              style={{ color: 'var(--danger)' }}
-                              title="Cancel booking (triggers auto waitlist promotion if members are queued)"
-                            >
-                              <Ban size={15} />
-                              <span>Cancel</span>
-                            </button>
+                          {isBooked && !isPast && (
+                            <>
+                              <span
+                                style={{
+                                  fontSize: '0.78rem',
+                                  color: 'var(--text-muted)',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '5px',
+                                  backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                                  padding: '4px 8px',
+                                  borderRadius: 'var(--radius-sm)',
+                                  border: '1px solid var(--border)',
+                                }}
+                              >
+                                <Clock size={13} style={{ opacity: 0.7 }} />
+                                <span>Not started yet</span>
+                              </span>
+                              {isStaff && (
+                                <button
+                                  onClick={() => setBookingToCancel(b)}
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ color: 'var(--danger)' }}
+                                  title="Cancel booking (triggers auto waitlist promotion if members are queued)"
+                                >
+                                  <Ban size={15} />
+                                  <span>Cancel</span>
+                                </button>
+                              )}
+                            </>
                           )}
                           {!isBooked && (
                             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
@@ -566,11 +660,33 @@ export function SessionDetailPage() {
               </div>
             )}
 
+            {actionError && (
+              <div
+                style={{
+                  padding: '10px 14px',
+                  backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                  border: '1px solid rgba(239, 68, 68, 0.4)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: '#FCA5A5',
+                  fontSize: '0.85rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                <span>{actionError}</span>
+              </div>
+            )}
+
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '8px' }}>
               <button
                 type="button"
                 className="btn btn-secondary"
-                onClick={() => setSettleModal(null)}
+                onClick={() => {
+                  setSettleModal(null);
+                  setActionError(null);
+                }}
                 disabled={submittingSettle}
               >
                 Cancel
@@ -611,11 +727,33 @@ export function SessionDetailPage() {
               </select>
             </div>
 
+            {actionError && (
+              <div
+                style={{
+                  padding: '10px 14px',
+                  backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                  border: '1px solid rgba(239, 68, 68, 0.4)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: '#FCA5A5',
+                  fontSize: '0.85rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                <span>{actionError}</span>
+              </div>
+            )}
+
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
               <button
                 type="button"
                 className="btn btn-secondary"
-                onClick={() => setIsCoModalOpen(false)}
+                onClick={() => {
+                  setIsCoModalOpen(false);
+                  setActionError(null);
+                }}
                 disabled={submittingCo}
               >
                 Cancel
@@ -639,8 +777,31 @@ export function SessionDetailPage() {
           message={`Are you sure you want to cancel the booking for ${bookingToCancel.member?.name || `Member #${bookingToCancel.memberId || bookingToCancel.member_id}`}? If there are waitlisted members, the earliest member in queue will be automatically promoted.`}
           confirmLabel={cancelling ? 'Cancelling...' : 'Cancel Booking'}
           confirmVariant="danger"
+          loading={cancelling}
+          error={actionError}
           onConfirm={handleConfirmCancel}
-          onCancel={() => setBookingToCancel(null)}
+          onClose={() => {
+            setBookingToCancel(null);
+            setActionError(null);
+          }}
+        />
+      )}
+
+      {/* Remove Co-Instructor Confirmation Modal */}
+      {coToRemove && (
+        <ConfirmDialog
+          isOpen={true}
+          title="Remove Co-Instructor"
+          message={`Are you sure you want to remove ${coToRemove.name} as a co-instructor from this session?`}
+          confirmLabel={removingCo ? 'Removing...' : 'Remove Co-Instructor'}
+          confirmVariant="danger"
+          loading={removingCo}
+          error={actionError}
+          onConfirm={handleConfirmRemoveCo}
+          onClose={() => {
+            setCoToRemove(null);
+            setActionError(null);
+          }}
         />
       )}
     </div>

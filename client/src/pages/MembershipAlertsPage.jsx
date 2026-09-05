@@ -25,12 +25,14 @@ export function MembershipAlertsPage() {
   // Dismiss confirm
   const [memberToDismiss, setMemberToDismiss] = useState(null);
   const [dismissing, setDismissing] = useState(false);
+  const [dismissError, setDismissError] = useState(null);
 
   // Renew / Extend Expiry Modal
   const [renewMember, setRenewMember] = useState(null);
   const [newExpiryDate, setNewExpiryDate] = useState('');
   const [updatingExpiry, setUpdatingExpiry] = useState(false);
   const [renewError, setRenewError] = useState(null);
+  const [successNotice, setSuccessNotice] = useState(null);
 
   const fetchAlerts = async () => {
     try {
@@ -53,11 +55,13 @@ export function MembershipAlertsPage() {
     if (!memberToDismiss) return;
     try {
       setDismissing(true);
+      setDismissError(null);
       await memberApi.dismissAlert(memberToDismiss.id);
+      setSuccessNotice(`Alert successfully dismissed for ${memberToDismiss.name}.`);
       setMemberToDismiss(null);
       fetchAlerts();
     } catch (err) {
-      alert(err.message || 'Failed to dismiss membership alert.');
+      setDismissError(err.message || 'Failed to dismiss membership alert.');
     } finally {
       setDismissing(false);
     }
@@ -65,6 +69,7 @@ export function MembershipAlertsPage() {
 
   const handleOpenRenewModal = (member) => {
     setRenewMember(member);
+    setSuccessNotice(null);
     // Suggest 30 days from today
     const d = new Date();
     d.setDate(d.getDate() + 30);
@@ -79,6 +84,7 @@ export function MembershipAlertsPage() {
       setUpdatingExpiry(true);
       setRenewError(null);
       await memberApi.updateMemberExpiry(renewMember.id, newExpiryDate);
+      setSuccessNotice(`Membership successfully extended to ${newExpiryDate} for ${renewMember.name}.`);
       setRenewMember(null);
       fetchAlerts();
     } catch (err) {
@@ -106,6 +112,41 @@ export function MembershipAlertsPage() {
           <span>Refresh Alerts</span>
         </button>
       </div>
+
+      {successNotice && (
+        <div
+          style={{
+            padding: '14px 18px',
+            backgroundColor: 'rgba(16, 185, 129, 0.15)',
+            border: '1px solid var(--success)',
+            borderRadius: 'var(--radius-md)',
+            color: '#34D399',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '10px',
+            fontSize: '0.9rem',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <CheckCircle2 size={18} style={{ flexShrink: 0 }} />
+            <span>{successNotice}</span>
+          </div>
+          <button
+            onClick={() => setSuccessNotice(null)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#34D399',
+              cursor: 'pointer',
+              padding: '2px',
+              display: 'flex',
+            }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       {error && (
         <div className="card" style={{ textAlign: 'center', padding: '36px', color: 'var(--danger)' }}>
@@ -333,12 +374,17 @@ export function MembershipAlertsPage() {
       {/* Dismiss Confirmation */}
       <ConfirmDialog
         isOpen={Boolean(memberToDismiss)}
-        onClose={() => setMemberToDismiss(null)}
+        onClose={() => {
+          setMemberToDismiss(null);
+          setDismissError(null);
+        }}
         onConfirm={handleConfirmDismiss}
         title="Dismiss Membership Alert"
         message={`Are you sure you want to dismiss the expiry alert for ${memberToDismiss?.name}? This member will no longer trigger an alert for this expiry period.`}
         confirmLabel={dismissing ? 'Dismissing...' : 'Dismiss Alert'}
         confirmVariant="secondary"
+        loading={dismissing}
+        error={dismissError}
       />
 
       {/* Renew / Extend Expiry Modal */}
