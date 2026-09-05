@@ -503,3 +503,292 @@ This scope applies to every dashboard metric and breakdown, including:
 * attendance by week
 
 I also explicitly required `currentlyWaitlisted` to use the same instructor session scope rather than accidentally returning the studio-wide waitlist count to instructors.
+
+
+## Frontend Architecture, Authentication & Application Shell
+
+### Prompt
+
+The backend for my Busy Infotech Class Booking assignment is complete. Build the React frontend against the existing backend APIs.
+
+Before implementing anything, inspect the existing frontend project structure, `package.json`, backend routes, authentication flow, API response formats, and existing conventions.
+
+Frontend constraints:
+
+* Use React.js.
+* Use React Router for routing.
+* Use Context API only for genuinely shared state, primarily authentication/current user information.
+* Use local React state for page/component-specific state.
+* Do NOT use Redux or Redux Toolkit.
+* Do NOT use TanStack Query/React Query.
+* Do NOT introduce another state-management library.
+* Do not modify the backend unless there is an actual API contract mismatch.
+
+Create a clean application shell with:
+
+* authentication
+* login/logout
+* protected routes
+* role-aware navigation
+* header/sidebar
+* responsive layout
+* loading states
+* API error handling
+
+The application has two important roles:
+
+* `STAFF`
+* `INSTRUCTOR`
+
+The frontend should reflect the backend authorization rules.
+
+STAFF should see the administrative management functionality.
+
+INSTRUCTOR should not see STAFF-only actions such as:
+
+* create class
+* edit class
+* archive class
+* create session
+* create member
+* create booking
+
+However, remember that frontend authorization is only for UX. The backend remains the actual security boundary.
+
+Do not create fake authorization logic that replaces backend authorization.
+
+Keep the implementation simple and consistent with the existing project.
+
+### What I got
+
+The frontend architecture was implemented around React, React Router, and Context API, with role-aware navigation and protected routes.
+
+### What I corrected
+
+I kept shared state limited to authentication/user information and avoided introducing Redux, TanStack Query, or another global state-management library.
+
+I also clarified that frontend role checks are only for controlling the UI. Backend authorization remains responsible for actually preventing unauthorized operations.
+
+## Dashboard UI — Goal 8
+
+### Prompt
+
+Build the dashboard UI for Goal 8 using the existing protected backend endpoint:
+
+`GET /dashboard`
+
+Do not create additional dashboard APIs.
+
+The dashboard must display:
+
+* sessions today
+* bookings made today
+* no-shows this week
+* currently waitlisted
+* bookings by status
+* bookings by class
+* attendance per week for the last eight weeks
+
+The backend already handles role-based scoping:
+
+* STAFF receives studio-wide statistics.
+* INSTRUCTOR receives statistics scoped to sessions where they are the primary instructor or co-instructor.
+
+The frontend must NOT fetch studio-wide data and filter it for instructors.
+
+Use the API response as the source of truth.
+
+Render:
+
+* summary statistic cards
+* bookings-by-status visualization
+* bookings-by-class visualization
+* attendance trend chart
+
+For `attendanceByWeek`, use the eight values returned by the backend directly.
+
+Do not perform frontend gap filling or attendance calculations. The backend already returns exactly eight chronological weeks, including zero-attendance weeks.
+
+Handle:
+
+* loading state
+* empty state
+* API errors
+* unauthorized responses
+
+Make the dashboard responsive and visually polished while keeping the implementation simple.
+
+### What I got
+
+The dashboard was built around the single `/dashboard` request, with summary cards and visualizations for the required Goal 8 metrics.
+
+### What I corrected
+
+I ensured that the frontend does not perform any role-based data filtering or recalculate dashboard statistics.
+
+The backend-provided data is rendered directly, so STAFF and INSTRUCTOR automatically receive their correct server-enforced scopes.
+
+## Instructor Class Discovery & "View My Sessions"
+
+### Prompt
+
+Implement the instructor-facing class discovery experience using the existing backend APIs.
+
+Use:
+
+`GET /instructor/classes`
+
+This endpoint returns **all active/non-archived classes in the studio**.
+
+Do NOT filter the returned classes based on instructor assignment.
+
+Display instructor-friendly class cards containing the available safe fields, such as:
+
+* title
+* description
+* discipline
+
+Each class should provide:
+
+`View My Sessions`
+
+When clicked, request:
+
+`GET /instructor/classes/:classId/sessions`
+
+This endpoint is already server-scoped to the authenticated instructor.
+
+Display only the sessions returned by the backend.
+
+Do not reproduce the primary/co-instructor authorization logic in React.
+
+Instructors must not see administrative class controls such as:
+
+* Edit
+* Archive
+* Delete
+* Create Class
+
+Provide appropriate:
+
+* loading state
+* empty state
+* API error state
+* navigation/back behavior
+
+Keep the UI consistent with the rest of the application.
+
+### What I got
+
+The instructor class page displays active classes and provides a "View My Sessions" flow for each class.
+
+### What I corrected
+
+I clarified that instructor class discovery is **studio-wide for active classes**.
+
+Only the sessions are instructor-scoped.
+
+The frontend therefore does not hide classes based on whether the instructor currently teaches them. Instead, it calls the dedicated sessions endpoint when the instructor chooses "View My Sessions."
+
+## Staff Management — Classes, Sessions, Members & Bookings
+
+### Prompt
+
+Build the STAFF-facing management UI using the existing backend APIs.
+
+First inspect the existing backend routes and use their actual endpoints and response formats.
+
+Implement the assignment-required management workflows for:
+
+* classes
+* sessions
+* members
+* bookings
+
+For STAFF, provide the appropriate:
+
+* list views
+* detail views
+* create forms
+* edit forms
+* archive/restore actions where supported
+* booking actions where supported
+* attendance actions where supported
+* validation feedback
+* confirmation dialogs for destructive/important actions
+
+Do not invent business rules in the frontend.
+
+The backend remains the source of truth for:
+
+* validation
+* authorization
+* booking lifecycle
+* attendance state
+* class/session rules
+
+INSTRUCTOR must not see STAFF-only management controls.
+
+Keep the UI consistent across all management pages.
+
+Handle:
+
+* loading
+* empty results
+* validation errors
+* 401
+* 403
+* 404
+* server errors
+
+without exposing raw backend errors to the user.
+
+### What I got
+
+The STAFF management pages were implemented around the existing backend APIs with role-aware actions and appropriate loading/error states.
+
+### What I corrected
+
+I avoided implementing duplicate business logic in React.
+
+The frontend is responsible for presenting forms and actions, while the backend remains responsible for validating and enforcing the actual operations.
+
+## Attendance & CSV Export UI
+
+### Prompt
+
+Complete the frontend functionality related to session attendance and attendance CSV export using the existing backend APIs.
+
+For session attendance:
+
+* Display booking/member attendance information where supported.
+* Clearly distinguish the existing booking statuses.
+* Provide attendance actions only where the authenticated role is authorized.
+* Do not invent new status transitions.
+
+For CSV export:
+
+Use the existing backend session attendance export endpoint.
+
+Provide an appropriate:
+
+`Export Attendance CSV`
+
+action for authorized users.
+
+The frontend should request the generated CSV from the backend rather than generating or serializing the CSV itself.
+
+Do not duplicate the backend's CSV escaping or filename logic in React.
+
+Handle export failures gracefully.
+
+Keep the experience consistent with the session detail page.
+
+### What I got
+
+The frontend exposes attendance information and the backend CSV export through the appropriate session UI.
+
+### What I corrected
+
+I kept CSV generation entirely on the backend. React only triggers the existing export endpoint and handles the resulting file response.
+

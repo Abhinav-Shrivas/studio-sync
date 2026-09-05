@@ -222,3 +222,28 @@ This is the strongest architectural decision/reversal:
 - **Chose:** Serve complete dashboard statistics through a single authenticated endpoint (`GET /dashboard`) with server-enforced role scoping (`authorize('STAFF', 'INSTRUCTOR')`). For `STAFF`, metrics are studio-wide; for `INSTRUCTOR`, all dashboard metrics and breakdowns are scoped directly in SQL to sessions where the instructor is primary or co-instructor. Compute the 8-week attendance series entirely in PostgreSQL using a `generate_series(7, 0, -1)` CTE LEFT JOINed with sessions and `ATTENDED` bookings grouped by session start week.
 - **Rejected:** Creating a dashboard statistics table; fetching raw bookings/sessions into Node.js to aggregate in memory; returning studio-wide data to instructors and relying on client-side filtering; returning partial weeks or omitting zero-attendance weeks.
 - **Why:** Database-side aggregation is fast, scalable, and atomic without requiring cache tables or background recalculation jobs. Scoping all metrics (including waitlists and attendance) in SQL ensures security cannot be bypassed. Generating 8 chronological weeks in PostgreSQL guarantees immediate compatibility with frontend charting libraries without requiring frontend gap-filling.
+
+
+## 32. React Context API for frontend shared state
+
+- **Chosen:** Use React Context API for genuinely shared frontend state, primarily authentication and the current user's role. Use local React state for component/page-specific state.
+- **Rejected:** Redux/Redux Toolkit, Zustand, TanStack Query, and other global state-management solutions.
+- **Why:** The application does not have sufficiently complex client-side state to justify an additional state-management library. Context API is sufficient for the small amount of state shared across the application while keeping the frontend architecture simple and easy to understand.
+
+## 33. Frontend authorization mirrors server-side permissions
+
+- **Chosen:** Reflect backend authorization constraints in the frontend by hiding navigation items, pages, and actions that the current role is not permitted to perform. STAFF and INSTRUCTOR receive different UI capabilities based on their role.
+- **Rejected:** Showing every action to every user and relying exclusively on backend 403 responses; implementing authorization only in the frontend.
+- **Why:** Frontend authorization provides a clearer and safer user experience by preventing users from seeing actions they cannot perform. However, the frontend is not treated as a security boundary—the backend continues to enforce all authorization rules.
+
+## 34. Single dashboard API consumed by role-aware frontend
+
+- **Chosen:** Use the existing authenticated GET /dashboard endpoint as the single data source for the dashboard. The frontend renders the response according to the authenticated user's role without performing additional client-side authorization filtering or recalculating dashboard statistics.
+- **Rejected:** Creating separate dashboard endpoints for STAFF and INSTRUCTOR; fetching raw sessions/bookings and calculating dashboard statistics in React; filtering studio-wide instructor data on the client.
+- **Why:** The backend already performs role-based SQL aggregation and returns the correct data scope. Keeping aggregation and authorization server-side prevents data leakage and keeps the frontend focused on presentation.
+
+## 35. No dedicated frontend test suite
+
+- **Chosen:** Verify the React frontend through manual end-to-end interaction against the implemented backend rather than adding a separate React unit/integration test suite.
+- **Rejected:** Adding Jest/Vitest, React Testing Library, or another frontend testing stack solely for this assignment.
+- **Why:** The critical business rules and authorization boundaries are enforced and covered by backend integration tests. For the frontend, manual verification is sufficient to validate routing, role-based UI visibility, API integration, loading/error/empty states, dashboard rendering, and responsive behavior without adding unnecessary testing infrastructure.

@@ -521,6 +521,28 @@ function parseTime(timeStr) {
 }
 
 /**
+ * Normalizes timezone offset to a suffix suitable for ISO string construction (e.g. "+05:30", "-04:00", or ".000Z").
+ */
+function formatTimezoneOffset(offset) {
+  if (!offset && offset !== 0) return '.000Z';
+  if (typeof offset === 'string') {
+    const trimmed = offset.trim();
+    if (trimmed === 'Z' || trimmed === 'UTC') return '.000Z';
+    if (/^[+-]\d{2}:\d{2}$/.test(trimmed)) return trimmed;
+    if (/^[+-]\d{4}$/.test(trimmed)) return `${trimmed.slice(0, 3)}:${trimmed.slice(3)}`;
+  }
+  if (typeof offset === 'number') {
+    const totalMinutes = -offset;
+    const sign = totalMinutes >= 0 ? '+' : '-';
+    const abs = Math.abs(totalMinutes);
+    const h = String(Math.floor(abs / 60)).padStart(2, '0');
+    const m = String(abs % 60).padStart(2, '0');
+    return `${sign}${h}:${m}`;
+  }
+  return '.000Z';
+}
+
+/**
  * Bulk-generates recurring sessions for a class across an inclusive date range
  * on a specific weekday. Skips existing occurrences (ALREADY_EXISTS) and overlapping
  * room/instructor conflicts while creating all other valid occurrences (partial success).
@@ -537,6 +559,7 @@ async function generateRecurringSchedule(data, user = null) {
     capacity: rawCapacity,
     primary_instructor_id,
     co_instructor_ids = [],
+    timezone_offset,
   } = data;
 
   if (!class_id) {
@@ -613,9 +636,10 @@ async function generateRecurringSchedule(data, user = null) {
 
   const created = [];
   const skipped = [];
+  const tzSuffix = formatTimezoneOffset(timezone_offset);
 
   for (const dateStr of matchingDateStrs) {
-    const startTime = new Date(`${dateStr}T${timeObj.formatted}.000Z`);
+    const startTime = new Date(`${dateStr}T${timeObj.formatted}${tzSuffix}`);
     const endTime = computeEndTime(startTime, duration);
 
     // Rule 3: Check whether an occurrence already exists for same class and exact start_time
